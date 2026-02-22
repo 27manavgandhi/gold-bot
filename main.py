@@ -264,12 +264,28 @@ def main() -> None:
     signal.signal(signal.SIGINT, _handle_signal)
     signal.signal(signal.SIGTERM, _handle_signal)
 
-    # Initialize MT5 (connection established per account selection)
-    if not mt5.initialize():
-        logger.warning(
-            "MT5 initialize() returned False on startup. "
-            "Connect via /select_account in Telegram."
-        )
+    # Initialize MT5 - try multiple known install paths automatically
+    _mt5_paths = [
+        r"C:\Program Files\MetaTrader 5\terminal64.exe",
+        r"C:\Program Files (x86)\MetaTrader 5\terminal64.exe",
+        r"C:\Program Files\Exness MT5 Terminal\terminal64.exe",
+        r"C:\Program Files (x86)\Exness MT5 Terminal\terminal64.exe",
+    ]
+    _initialized = False
+    for _p in _mt5_paths:
+        if os.path.exists(_p):
+            if mt5.initialize(path=_p):
+                logger.info(f"MT5 initialized from: {_p}")
+                _initialized = True
+                break
+    if not _initialized:
+        if mt5.initialize():
+            logger.info("MT5 initialized via default path.")
+        else:
+            logger.warning(
+                "MT5 initialize() returned False on startup. "
+                "Connect via /select_account in Telegram."
+            )
 
     logger.info("=" * 60)
     logger.info("Gold Bot XAUUSD starting up")
