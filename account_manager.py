@@ -1,6 +1,7 @@
 """
 account_manager.py
 Manages multiple MT5 accounts with Fernet-encrypted credential storage.
+Supports demo accounts where password may be provided via email from broker.
 """
 
 import json
@@ -32,7 +33,10 @@ def _load_accounts_raw() -> dict:
     if not os.path.exists(ACCOUNTS_FILE):
         return {}
     with open(ACCOUNTS_FILE, "r") as f:
-        return json.load(f)
+        try:
+            return json.load(f)
+        except json.JSONDecodeError:
+            return {}
 
 
 def _save_accounts_raw(data: dict) -> None:
@@ -45,10 +49,10 @@ def _save_accounts_raw(data: dict) -> None:
 def add_account(alias: str, login: int, password: str, server: str) -> None:
     """
     Encrypt and store a new MT5 account.
-    alias   – user-friendly nickname for selection
-    login   – MT5 account number (integer)
-    password – MT5 account password
-    server  – MT5 broker server string
+    alias    – user-friendly nickname for selection
+    login    – MT5 account number (integer)
+    password – MT5 account password (from broker email for demo accounts)
+    server   – MT5 broker server string (e.g. MetaQuotes-Demo)
     """
     fernet = _load_or_create_key()
     accounts = _load_accounts_raw()
