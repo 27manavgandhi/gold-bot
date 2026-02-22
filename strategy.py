@@ -72,10 +72,18 @@ def check_spread() -> bool:
 
 
 def check_leverage() -> bool:
-    """Return True if account leverage meets minimum requirement."""
+    """
+    Return True if account leverage meets minimum requirement.
+    Exness and some brokers report Unlimited leverage as 0 in the MT5 API.
+    A value of 0 means unlimited, which always passes this check.
+    """
     info = mt5.account_info()
     if info is None:
         return False
+    # 0 = Unlimited leverage (Exness, some other brokers)
+    if info.leverage == 0:
+        logger.debug("Leverage: Unlimited (reported as 0) - check passed.")
+        return True
     return info.leverage >= LEVERAGE_MIN
 
 
