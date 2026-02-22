@@ -7,9 +7,8 @@ Edit values here before deployment.
 import os
 
 # ── Telegram ──────────────────────────────────────────────────────────────────
-TELEGRAM_TOKEN: str = os.environ.get("TELEGRAM_TOKEN", "YOUR_TELEGRAM_BOT_TOKEN")
-ALLOWED_CHAT_IDS: list[int] = [int(x) for x in os.environ.get("ALLOWED_CHAT_IDS", "0").split(",") if x.strip()]
-
+TELEGRAM_TOKEN: str = os.environ.get("TELEGRAM_TOKEN", "8291494897:AAEi7l_fZbJqCOxxcBgUpYsz1xSfbbP83FU")
+ALLOWED_CHAT_IDS: list[int] = [1919885083]
 # ── MetaTrader 5 ───────────────────────────────────────────────────────────────
 MT5_SYMBOL: str = "XAUUSD"
 MT5_DEVIATION: int = 20           # max slippage in points
@@ -51,6 +50,12 @@ TRADE_LOG_FILE: str = os.path.join(DATA_DIR, "trade_logs.csv")
 M1_TF_INT: int = 1
 M5_TF_INT: int = 5
 BARS_NEEDED: int = 100            # candle history to fetch
+
+# ── MT5 Terminal Path (set this if auto-detection fails) ─────────────────────
+# Leave as empty string for auto-detection
+# Example: MT5_PATH = r"C:\Users\hp\AppData\Roaming\MetaQuotes\Terminal\YOUR_ID\terminal64.exe"
+MT5_PATH: str = r"C:\Users\hp\AppData\Roaming\MetaQuotes\Terminal\D0E8209F77C8CF37AD8BF550E51FF075\terminal64.exe"
+
 
 # ── Pip Definitions ───────────────────────────────────────────────────────────
 # XAUUSD: 1 pip = $0.10 (point = $0.01, 10 points = 1 pip)
