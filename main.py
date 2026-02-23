@@ -63,23 +63,40 @@ def _trading_loop() -> None:
 
     logger.info("Trading loop started.")
 
+    poll_count = 0
+
     while not shutdown_event.is_set():
         try:
             time.sleep(5)
+            poll_count += 1
+
+            # ── Heartbeat every 60 seconds ────────────────────────────────────
+            if poll_count % 12 == 0:
+                enabled = trading_state.get("enabled", False)
+                alias   = trading_state.get("alias", "None")
+                session = "IN SESSION" if is_trading_session() else "OFF HOURS"
+                acct    = mt5.account_info()
+                balance = acct.balance if acct else 0.0
+                logger.info("HEARTBEAT >> enabled=%s | account=%s | %s | balance=$%.2f",
+                            enabled, alias, session, balance)
 
             if not trading_state["enabled"]:
+                if poll_count % 12 == 0:
+                    logger.info("HEARTBEAT >> Bot is PAUSED. Send /start in Telegram.")
                 continue
 
             if trading_state["alias"] is None:
+                if poll_count % 12 == 0:
+                    logger.info("HEARTBEAT >> No account selected. Send /select_account.")
                 continue
 
             # ── Check MT5 connection ──────────────────────────────────────────
-            if mt5.account_info() is None:
+            account = mt5.account_info()
+            if account is None:
                 logger.error("MT5 connection lost. Retrying in 30s...")
                 time.sleep(30)
                 continue
 
-            account = mt5.account_info()
             equity = account.equity
 
             # ── Check daily drawdown ──────────────────────────────────────────
@@ -91,55 +108,57 @@ def _trading_loop() -> None:
             # ── Detect new M1 candle ──────────────────────────────────────────
             candle_time = _get_current_candle_time()
             if candle_time is None:
+                logger.warning("Cannot read candle from MT5 - check connection.")
                 continue
 
             if candle_time == _last_candle_time:
-                # Same candle still forming – check early exits on open positions
                 _check_open_positions_early_exit()
                 continue
 
-            # New candle confirmed
+            # ── New candle confirmed ──────────────────────────────────────────
             _last_candle_time = candle_time
             risk_manager.tick_candle()
+            logger.info("NEW CANDLE >> %s UTC", candle_time.strftime("%H:%M"))
 
             # ── Scheduled daily report at 21:00 UTC ───────────────────────────
             now_utc_hour = datetime.now(timezone.utc).hour
             if now_utc_hour == 21 and _daily_report_sent_hour != 21:
                 _daily_report_sent_hour = 21
-                # Schedule coroutine to run in the event loop
                 asyncio.run_coroutine_threadsafe(
-                    _send_report_coroutine(),
-                    _telegram_event_loop,
+                    _send_report_coroutine(), _telegram_event_loop,
                 )
             elif now_utc_hour != 21:
-                _daily_report_sent_hour = -1  # reset for next day
+                _daily_report_sent_hour = -1
 
             # ── Check existing positions for SL/TP hit ────────────────────────
             _check_closed_positions()
 
             # ── Skip if not in session ────────────────────────────────────────
             if not is_trading_session():
+                logger.info("SKIP >> Off-hours, no trading session active.")
                 continue
 
             # ── Risk gate ─────────────────────────────────────────────────────
             can, reason = risk_manager.can_trade(equity)
             if not can:
-                logger.debug(f"Trade blocked: {reason}")
+                logger.info("RISK BLOCK >> %s", reason)
+                continue
+
+            # ── Only 1 position at a time ─────────────────────────────────────
+            open_pos = get_open_positions()
+            if len(open_pos) > 0:
+                logger.info("SKIP >> Already have %d open position(s).", len(open_pos))
                 continue
 
             # ── Evaluate signal ───────────────────────────────────────────────
-            if len(get_open_positions()) > 0:
-                # Only 1 position at a time
-                continue
-
             signal = evaluate_signal()
             if signal is None:
                 continue
 
             # ── Get lot size from challenge level ─────────────────────────────
-            balance = account.balance
+            balance   = account.balance
             level_cfg = get_current_level(balance)
-            lot = level_cfg["lot"]
+            lot       = level_cfg["lot"]
 
             # ── Place order ───────────────────────────────────────────────────
             result = place_order(
@@ -153,12 +172,13 @@ def _trading_loop() -> None:
             if result is not None:
                 risk_manager.record_trade_opened()
                 logger.info(
-                    f"Trade opened: {signal['direction']} {lot} lots "
-                    f"Level={level_cfg['level']}"
+                    "ORDER PLACED >> %s | lot=%s | level=%d | session=%s",
+                    signal["direction"], lot, level_cfg["level"],
+                    signal.get("session", "?")
                 )
 
         except Exception as exc:
-            logger.exception(f"Unhandled error in trading loop: {exc}")
+            logger.exception("Unhandled error in trading loop: %s", exc)
             time.sleep(10)
 
     logger.info("Trading loop stopped.")
