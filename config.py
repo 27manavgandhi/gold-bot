@@ -1,25 +1,16 @@
 """
 config.py
 Central configuration for the Gold Bot trading system.
-Loads credentials from .env file using python-dotenv.
 """
 
 import os
-from dotenv import load_dotenv
-
-# Load .env file from the same directory as this script
-load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
 
 # ── Telegram ──────────────────────────────────────────────────────────────────
-TELEGRAM_TOKEN: str = os.environ.get("TELEGRAM_TOKEN", "")
-ALLOWED_CHAT_IDS: list[int] = [
-    int(x)
-    for x in os.environ.get("ALLOWED_CHAT_IDS", "").split(",")
-    if x.strip().lstrip("-").isdigit()
-]
+TELEGRAM_TOKEN: str = "8291494897:AAEi7l_fZbJqCOxxcBgUpYsz1xSfbbP83FU"
+ALLOWED_CHAT_IDS: list[int] = [1919885083]
 
 # ── MetaTrader 5 ───────────────────────────────────────────────────────────────
-MT5_SYMBOL: str = "XAUUSD"
+MT5_SYMBOL: str = "XAUUSDm"
 MT5_DEVIATION: int = 20
 MT5_MAGIC: int = 20240101
 MT5_TIMEOUT: int = 60_000
@@ -40,7 +31,7 @@ MAX_TRADES_PER_SESSION: int = 5
 LOSS_COOLDOWN_CANDLES: int = 5
 
 # ── Session Times (UTC) ───────────────────────────────────────────────────────
-# Asian session:    00:00 - 06:00 UTC  (Tokyo/Sydney)
+# Asian session:    00:00 - 06:00 UTC
 # London session:   07:00 - 16:00 UTC
 # New York session: 12:00 - 21:00 UTC
 ASIAN_OPEN_UTC: tuple = (0, 0)
@@ -64,9 +55,8 @@ M5_TF_INT: int = 5
 BARS_NEEDED: int = 100
 
 # ── MT5 Terminal Path ─────────────────────────────────────────────────────────
-# Set in .env file. Leave empty for auto-detection.
-MT5_PATH: str = os.environ.get("MT5_PATH", "")
+MT5_PATH: str = r"C:\Users\hp\AppData\Roaming\MetaQuotes\Terminal\D0E8209F77C8CF37AD8BF550E51FF075\terminal64.exe"
+
 
 # ── Pip Definitions ───────────────────────────────────────────────────────────
-# XAUUSD: 1 pip = $0.10 (point = $0.01, 10 points = 1 pip)
 PIP_POINTS: int = 10
