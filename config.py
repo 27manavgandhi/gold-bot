@@ -19,10 +19,10 @@ MT5_TIMEOUT: int = 60_000
 EMA_FAST: int = 20
 EMA_SLOW: int = 50
 ATR_PERIOD: int = 14
-ATR_MIN: float = 1.8
-SPREAD_MAX_POINTS: int = 25
+ATR_MIN: float = 0.5
+SPREAD_MAX_POINTS: int = 500
 LEVERAGE_MIN: int = 2000
-CANDLE_BODY_MULTIPLIER: float = 1.5
+CANDLE_BODY_MULTIPLIER: float = 1
 EARLY_EXIT_PIPS: float = 10.0
 
 # ── Risk Management ───────────────────────────────────────────────────────────
