@@ -3,16 +3,15 @@ strategy.py
 Impulse Breakout Continuation Strategy for XAUUSDm (Exness Demo).
 
 Pip definition for XAUUSDm:
-  - 1 pip = $1.00 price move (e.g. 5120.00 -> 5121.00 = 1 pip)
-  - point = 0.001 (MT5 minimum price increment)
-  - 1 pip = 100 points
-  - 0.01 lot = $0.01 per point = $1.00 per pip
-  - 0.02 lot = $0.02 per point = $2.00 per pip
+  1 pip = $1.00 price move  (e.g. 5120.00 -> 5121.00 = 1 pip)
+  point = 0.001 (MT5 minimum tick)
+  1 pip = 100 points
 
-Example:
-  Entry 5120.00, 20 pip TP = 5140.00
-  Entry 5120.00, 15 pip SL = 5105.00
-  On 0.02 lot: profit = 20 pips x $2/pip = $4.00
+SL and TP pips come from challenge_config per level — NOT hardcoded here.
+  Level 1 example: lot=0.03, SL=15 pips, TP=20 pips
+    BUY  @ 5120.00 -> SL=5105.00, TP=5140.00
+    Risk   = 10 * 0.03 * 15 = $4.50
+    Profit = 10 * 0.03 * 20 = $6.00
 """
 
 from datetime import datetime, timezone
@@ -23,7 +22,7 @@ import pandas as pd
 
 from config import (
     ATR_MIN, ATR_PERIOD, BARS_NEEDED, CANDLE_BODY_MULTIPLIER,
-    EMA_FAST, EMA_SLOW, LEVERAGE_MIN, MT5_SYMBOL, PIP_POINTS,
+    EMA_FAST, EMA_SLOW, LEVERAGE_MIN, MT5_SYMBOL,
     SPREAD_MAX_POINTS,
     ASIAN_OPEN_UTC, ASIAN_CLOSE_UTC,
     LONDON_OPEN_UTC, LONDON_CLOSE_UTC,
@@ -31,10 +30,8 @@ from config import (
 )
 from logger import logger
 
-# ── SL / TP distances in PIPS (1 pip = $1 price move on XAUUSDm) ─────────────
-SL_PIPS = 15   # Stop Loss:   15 pips away from entry
-TP_PIPS = 25   # Take Profit: 25 pips away from entry
-# Risk/Reward = 1:1.67
+# 1 pip = $1.00 price move on XAUUSDm
+PIP = 1.0
 
 
 def _fetch_rates(timeframe: int, count: int) -> Optional[pd.DataFrame]:
@@ -100,7 +97,7 @@ def check_leverage() -> tuple[bool, int]:
     if info is None:
         return False, -1
     if info.leverage == 0:
-        return True, 0   # Unlimited (Exness)
+        return True, 0
     return info.leverage >= LEVERAGE_MIN, info.leverage
 
 
@@ -118,23 +115,13 @@ def get_m5_bias() -> Optional[str]:
     return None
 
 
-def _get_pip_size(symbol_info) -> float:
+def evaluate_signal(sl_pips: float, tp_pips: float) -> Optional[dict]:
     """
-    Return 1 pip in price units for XAUUSDm.
-    XAUUSDm: point = 0.001, 1 pip = 1.000 (100 points)
-    We detect this from the symbol digits:
-      digits=3 -> point=0.001 -> pip=1.0
-      digits=2 -> point=0.01  -> pip=1.0 (some brokers)
-    """
-    # For gold (XAUUSDm), 1 pip is always $1.00 price move
-    # regardless of point size
-    return 1.0
+    Evaluate market for a trade signal.
 
-
-def evaluate_signal() -> Optional[dict]:
-    """
-    Evaluate market for a trade signal with full diagnostic logging.
-    SL = 15 pips, TP = 25 pips (1 pip = $1 price move on XAUUSDm)
+    sl_pips and tp_pips come from challenge_config for the current level.
+    E.g. Level 1: sl_pips=15, tp_pips=20
+         Entry 5120.00 SELL -> SL=5135.00, TP=5100.00
     """
     now_str = datetime.now(timezone.utc).strftime("%H:%M:%S")
     session = get_session_name()
@@ -143,27 +130,27 @@ def evaluate_signal() -> Optional[dict]:
     logger.info("SCAN @ %s UTC | Session: %s", now_str, session)
     logger.info("=" * 55)
 
-    # ── Session check ──────────────────────────────────────────────────────────
+    # ── Session ────────────────────────────────────────────────────────────────
     if not is_trading_session():
-        logger.info("BLOCKED >> Off-hours. Waiting for next session.")
+        logger.info("BLOCKED >> Off-hours.")
         return None
     logger.info("PASS   >> Session: %s", session)
 
-    # ── Spread check ───────────────────────────────────────────────────────────
+    # ── Spread ─────────────────────────────────────────────────────────────────
     spread_ok, spread_val = check_spread()
     if not spread_ok:
-        logger.info("BLOCKED >> Spread too high: %d (max: %d)", spread_val, SPREAD_MAX_POINTS)
+        logger.info("BLOCKED >> Spread %d > max %d", spread_val, SPREAD_MAX_POINTS)
         return None
-    logger.info("PASS   >> Spread: %d points (max: %d)", spread_val, SPREAD_MAX_POINTS)
+    logger.info("PASS   >> Spread: %d (max: %d)", spread_val, SPREAD_MAX_POINTS)
 
-    # ── Leverage check ─────────────────────────────────────────────────────────
+    # ── Leverage ───────────────────────────────────────────────────────────────
     lev_ok, lev_val = check_leverage()
     if not lev_ok:
-        logger.info("BLOCKED >> Leverage too low: %d (min: %d)", lev_val, LEVERAGE_MIN)
+        logger.info("BLOCKED >> Leverage %d < min %d", lev_val, LEVERAGE_MIN)
         return None
     logger.info("PASS   >> Leverage: %s", "Unlimited" if lev_val == 0 else str(lev_val))
 
-    # ── Fetch M1 bars ──────────────────────────────────────────────────────────
+    # ── M1 bars ────────────────────────────────────────────────────────────────
     df = _fetch_rates(mt5.TIMEFRAME_M1, BARS_NEEDED)
     if df is None or len(df) < EMA_SLOW + 10:
         logger.info("BLOCKED >> Not enough M1 bars.")
@@ -187,152 +174,122 @@ def evaluate_signal() -> Optional[dict]:
     candle_dir = "BULL" if last["close"] > last["open"] else "BEAR"
 
     logger.info(
-        "INDICATORS >> EMA20=%.2f | EMA50=%.2f | ATR=%.2f | Body=%.2f | AvgBody=%.2f | Candle=%s",
+        "INDICATORS >> EMA20=%.2f | EMA50=%.2f | ATR=%.2f | Body=%.2f | AvgBody=%.2f | %s",
         ema_fast, ema_slow, atr_value, body, avg_body, candle_dir
     )
 
     # ── ATR filter ─────────────────────────────────────────────────────────────
     if atr_value < ATR_MIN:
-        logger.info("BLOCKED >> ATR %.2f < min %.1f — low volatility.", atr_value, ATR_MIN)
+        logger.info("BLOCKED >> ATR %.2f < %.1f", atr_value, ATR_MIN)
         return None
-    logger.info("PASS   >> ATR: %.2f (min: %.1f)", atr_value, ATR_MIN)
+    logger.info("PASS   >> ATR: %.2f", atr_value)
 
     # ── M5 bias ────────────────────────────────────────────────────────────────
     m5_bias = get_m5_bias()
     if m5_bias is None:
-        logger.info("BLOCKED >> M5 bias unclear — EMAs too close.")
+        logger.info("BLOCKED >> M5 bias unclear.")
         return None
     logger.info("PASS   >> M5 Bias: %s", m5_bias)
 
-    # ── M1 EMA trend ──────────────────────────────────────────────────────────
+    # ── M1 EMA info ───────────────────────────────────────────────────────────
     ema_bullish = ema_fast > ema_slow
     ema_bearish = ema_fast < ema_slow
-    ema_trend   = "BULLISH" if ema_bullish else "BEARISH"
-    logger.info("INFO   >> M1 EMA: %s | M5: %s (alignment skipped for demo)", ema_trend, m5_bias)
+    logger.info("INFO   >> M1 EMA: %s | M5: %s",
+                "BULLISH" if ema_bullish else "BEARISH", m5_bias)
 
-    # ── Candle body strength ───────────────────────────────────────────────────
+    # ── Candle body ────────────────────────────────────────────────────────────
     if avg_body <= 0:
-        logger.info("BLOCKED >> Average body is zero.")
+        logger.info("BLOCKED >> avg_body is zero.")
         return None
     body_ratio  = body / avg_body
     strong_body = body_ratio >= CANDLE_BODY_MULTIPLIER
-    logger.info(
-        "INFO   >> Body ratio: %.2fx (need >= %.1fx) — %s",
-        body_ratio, CANDLE_BODY_MULTIPLIER, "STRONG" if strong_body else "WEAK"
-    )
+    logger.info("INFO   >> Body ratio: %.2fx (need >= %.1fx) — %s",
+                body_ratio, CANDLE_BODY_MULTIPLIER, "STRONG" if strong_body else "WEAK")
     if not strong_body:
-        logger.info("BLOCKED >> Candle body too weak. Waiting for impulse.")
+        logger.info("BLOCKED >> Candle too weak.")
         return None
-    logger.info("PASS   >> Strong candle confirmed.")
+    logger.info("PASS   >> Strong candle.")
 
-    # ── Breakout check ─────────────────────────────────────────────────────────
+    # ── Breakout ───────────────────────────────────────────────────────────────
     broke_high = last["high"] > prev["high"]
     broke_low  = last["low"]  < prev["low"]
-    logger.info(
-        "INFO   >> Prev High=%.2f | Last High=%.2f | Broke High=%s",
-        prev["high"], last["high"], broke_high
-    )
-    logger.info(
-        "INFO   >> Prev Low=%.2f  | Last Low=%.2f  | Broke Low=%s",
-        prev["low"], last["low"], broke_low
-    )
+    logger.info("INFO   >> Prev H=%.2f | Last H=%.2f | BrokeHigh=%s",
+                prev["high"], last["high"], broke_high)
+    logger.info("INFO   >> Prev L=%.2f | Last L=%.2f | BrokeLow=%s",
+                prev["low"],  last["low"],  broke_low)
 
     # ── Symbol info ────────────────────────────────────────────────────────────
     symbol_info = mt5.symbol_info(MT5_SYMBOL)
     if symbol_info is None:
-        logger.info("BLOCKED >> Cannot get symbol info.")
+        logger.info("BLOCKED >> No symbol info.")
         return None
-
-    pip = _get_pip_size(symbol_info)   # 1.0 for XAUUSDm
-    digits = symbol_info.digits        # 3 for XAUUSDm
+    digits = symbol_info.digits
 
     direction = None
 
-    # BUY: M5 bullish + strong bull candle + broke previous high
-    if (m5_bias == "LONG"
-            and strong_body
-            and last["close"] > last["open"]
-            and broke_high):
+    if m5_bias == "LONG" and strong_body and last["close"] > last["open"] and broke_high:
         direction = "BUY"
-        logger.info("SIGNAL >> BUY confirmed! All conditions met.")
-
-    # SELL: M5 bearish + strong bear candle + broke previous low
-    elif (m5_bias == "SHORT"
-          and strong_body
-          and last["close"] < last["open"]
-          and broke_low):
+        logger.info("SIGNAL >> BUY confirmed!")
+    elif m5_bias == "SHORT" and strong_body and last["close"] < last["open"] and broke_low:
         direction = "SELL"
-        logger.info("SIGNAL >> SELL confirmed! All conditions met.")
-
+        logger.info("SIGNAL >> SELL confirmed!")
     else:
         if m5_bias == "LONG":
             if last["close"] <= last["open"]:
-                logger.info("BLOCKED >> BUY needs bullish candle but got BEARISH.")
+                logger.info("BLOCKED >> BUY needs bullish candle, got BEARISH.")
             elif not broke_high:
-                logger.info(
-                    "BLOCKED >> BUY needs break above %.2f but high was %.2f.",
-                    prev["high"], last["high"]
-                )
+                logger.info("BLOCKED >> BUY needs high > %.2f, got %.2f.", prev["high"], last["high"])
         elif m5_bias == "SHORT":
             if last["close"] >= last["open"]:
-                logger.info("BLOCKED >> SELL needs bearish candle but got BULLISH.")
+                logger.info("BLOCKED >> SELL needs bearish candle, got BULLISH.")
             elif not broke_low:
-                logger.info(
-                    "BLOCKED >> SELL needs break below %.2f but low was %.2f.",
-                    prev["low"], last["low"]
-                )
+                logger.info("BLOCKED >> SELL needs low < %.2f, got %.2f.", prev["low"], last["low"])
         return None
 
-    # ── Entry / SL / TP ────────────────────────────────────────────────────────
+    # ── Entry / SL / TP using level's pip distances ────────────────────────────
     tick = mt5.symbol_info_tick(MT5_SYMBOL)
     if tick is None:
-        logger.info("BLOCKED >> Cannot get tick price.")
+        logger.info("BLOCKED >> No tick data.")
         return None
 
     if direction == "BUY":
         entry = tick.ask
-        sl    = round(entry - SL_PIPS * pip, digits)
-        tp    = round(entry + TP_PIPS * pip, digits)
+        sl    = round(entry - sl_pips * PIP, digits)
+        tp    = round(entry + tp_pips * PIP, digits)
     else:
         entry = tick.bid
-        sl    = round(entry + SL_PIPS * pip, digits)
-        tp    = round(entry - TP_PIPS * pip, digits)
+        sl    = round(entry + sl_pips * PIP, digits)
+        tp    = round(entry - tp_pips * PIP, digits)
 
     logger.info(
-        "TRADE  >> %s | Entry=%.2f | SL=%.2f (-%d pips) | TP=%.2f (+%d pips) | Session=%s",
-        direction, entry, sl, SL_PIPS, tp, TP_PIPS, session
+        "TRADE  >> %s | Entry=%.2f | SL=%.2f (-%d pips) | TP=%.2f (+%d pips) | %s",
+        direction, entry, sl, sl_pips, tp, tp_pips, session
     )
 
     return {
         "direction": direction,
-        "entry": entry,
-        "sl": sl,
-        "tp": tp,
-        "atr": atr_value,
-        "session": session,
+        "entry":     entry,
+        "sl":        sl,
+        "tp":        tp,
+        "atr":       atr_value,
+        "session":   session,
     }
 
 
 def check_early_exit(position) -> bool:
     """
-    Close position early if opposite engulfing candle appears
-    before reaching +10 pip profit.
+    Early exit on opposite engulfing candle when profit < +10 pips.
     """
-    symbol_info = mt5.symbol_info(MT5_SYMBOL)
-    if symbol_info is None:
-        return False
-
-    pip  = _get_pip_size(symbol_info)
     tick = mt5.symbol_info_tick(MT5_SYMBOL)
     if tick is None:
         return False
 
     if position.type == mt5.ORDER_TYPE_BUY:
-        profit_pips = (tick.bid - position.price_open) / pip
+        profit_pips = (tick.bid - position.price_open) / PIP
     else:
-        profit_pips = (position.price_open - tick.ask) / pip
+        profit_pips = (position.price_open - tick.ask) / PIP
 
-    # Only apply early exit below +10 pips profit
+    # Don't exit if already +10 pips in profit
     if profit_pips >= 10:
         return False
 
@@ -355,11 +312,11 @@ def check_early_exit(position) -> bool:
     )
 
     if position.type == mt5.ORDER_TYPE_BUY and engulf_bear:
-        logger.info("EARLY EXIT >> Bearish engulfing vs BUY #%s (profit=%.1f pips)",
+        logger.info("EARLY EXIT >> Bear engulf vs BUY #%s (%.1f pips)",
                     position.ticket, profit_pips)
         return True
     if position.type == mt5.ORDER_TYPE_SELL and engulf_bull:
-        logger.info("EARLY EXIT >> Bullish engulfing vs SELL #%s (profit=%.1f pips)",
+        logger.info("EARLY EXIT >> Bull engulf vs SELL #%s (%.1f pips)",
                     position.ticket, profit_pips)
         return True
 
