@@ -150,15 +150,22 @@ def _trading_loop() -> None:
                 logger.info("SKIP >> Already have %d open position(s).", len(open_pos))
                 continue
 
-            # ── Evaluate signal ───────────────────────────────────────────────
-            signal = evaluate_signal()
-            if signal is None:
-                continue
-
-            # ── Get lot size from challenge level ─────────────────────────────
+            # ── Get level config (lot, SL, TP) ───────────────────────────────
             balance   = account.balance
             level_cfg = get_current_level(balance)
             lot       = level_cfg["lot"]
+            sl_pips   = level_cfg["sl_pips"]
+            tp_pips   = level_cfg["tp_pips"]
+
+            logger.info(
+                "LEVEL %d >> lot=%.2f | SL=%.2f pips | TP=%.0f pips | balance=$%.2f",
+                level_cfg["level"], lot, sl_pips, tp_pips, balance
+            )
+
+            # ── Evaluate signal ───────────────────────────────────────────────
+            signal = evaluate_signal(sl_pips=sl_pips, tp_pips=tp_pips)
+            if signal is None:
+                continue
 
             # ── Place order ───────────────────────────────────────────────────
             result = place_order(
