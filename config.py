@@ -26,9 +26,9 @@ CANDLE_BODY_MULTIPLIER: float = 1
 EARLY_EXIT_PIPS: float = 10.0
 
 # ── Risk Management ───────────────────────────────────────────────────────────
-MAX_DAILY_DRAWDOWN_PCT: float = 0.35
-MAX_TRADES_PER_SESSION: int = 5
-LOSS_COOLDOWN_CANDLES: int = 5
+MAX_DAILY_DRAWDOWN_PCT: float = 0.99
+MAX_TRADES_PER_SESSION: int = 100000
+LOSS_COOLDOWN_CANDLES: int = 0
 
 # ── Session Times (UTC) ───────────────────────────────────────────────────────
 # Asian session:    00:00 - 06:00 UTC
