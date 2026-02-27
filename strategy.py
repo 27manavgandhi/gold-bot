@@ -165,7 +165,7 @@ def _market_is_moving(df: pd.DataFrame) -> bool:
 
 # ── main signal ───────────────────────────────────────────────────────────────
 
-def evaluate_signal() -> Optional[dict]:
+def evaluate_signal(sl_pips: float = 15, tp_pips: float = 20) -> Optional[dict]:
     """
     Main signal evaluation using Donchian Channel breakout + MACD + M5 EMA.
 
@@ -283,12 +283,12 @@ def evaluate_signal() -> Optional[dict]:
 
     if direction == "BUY":
         entry = tick.ask
-        sl    = round(entry - 15 * pip, symbol_info.digits)
-        tp    = round(entry + 20 * pip, symbol_info.digits)
+        sl    = round(entry - sl_pips * pip, symbol_info.digits)
+        tp    = round(entry + tp_pips * pip, symbol_info.digits)
     else:
         entry = tick.bid
-        sl    = round(entry + 15 * pip, symbol_info.digits)
-        tp    = round(entry - 20 * pip, symbol_info.digits)
+        sl    = round(entry + sl_pips * pip, symbol_info.digits)
+        tp    = round(entry - tp_pips * pip, symbol_info.digits)
 
     logger.info(
         f"SIGNAL: {direction} | entry={entry:.5f} sl={sl:.5f} tp={tp:.5f} | "
