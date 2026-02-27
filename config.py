@@ -10,12 +10,8 @@ import os
 TELEGRAM_TOKEN: str = os.environ.get("TELEGRAM_TOKEN", "8291494897:AAEi7l_fZbJqCOxxcBgUpYsz1xSfbbP83FU")
 ALLOWED_CHAT_IDS: list[int] = [int(x) for x in os.environ.get("ALLOWED_CHAT_IDS", "1919885083").split(",") if x.strip()]
 
-
-# ── Telegram ──────────────────────────────────────────────────────────────────
-#TELEGRAM_TOKEN: str = "8291494897:AAEi7l_fZbJqCOxxcBgUpYsz1xSfbbP83FU"
-#ALLOWED_CHAT_IDS: list[int] = [1919885083]
-
 # ── MetaTrader 5 ──────────────────────────────────────────────────────────────
+MT5_PATH: str      = r"C:\Program Files\MetaTrader 5\terminal64.exe"  # path to MT5 terminal
 MT5_SYMBOL: str   = "XAUUSDm"
 MT5_DEVIATION: int = 20           # max slippage in points
 MT5_MAGIC: int     = 20240101     # magic number for bot orders
