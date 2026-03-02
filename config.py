@@ -50,7 +50,7 @@ MIN_RANGE_CANDLES: int  = 10      # look-back window for range check
 MIN_RANGE_PRICE: float  = 1.5     # minimum price range in last N candles (XAUUSDm units)
 
 # ── Spread & Leverage ─────────────────────────────────────────────────────────
-SPREAD_MAX_POINTS: int = 25       # maximum allowed spread in MT5 points
+SPREAD_MAX_POINTS: int = 600       # maximum allowed spread in MT5 points
 LEVERAGE_MIN: int      = 2000     # minimum required account leverage
 
 # ── Risk Management ───────────────────────────────────────────────────────────
