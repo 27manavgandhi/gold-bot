@@ -1,58 +1,66 @@
 """
 challenge_config.py
-30-level pip challenge ladder for XAUUSD trading system.
-Each level compounds balance and lot size geometrically.
-SL = 15 pips, TP = 20 pips across all levels.
+30-level challenge starting from $50.
+
+XAUUSDm pip definition:
+  1 pip = 0.1 price move
+  Entry 5120, TP 20 pips = 5122.0  (+$6.00 on 0.03 lot)
+  Entry 5120, SL 15 pips = 5118.5  (-$4.50 on 0.03 lot)
+
+Formula:
+  Profit$ = lot * 100 * tp_pips * 0.1
+  Risk$   = lot * 100 * sl_pips * 0.1
+  SL pips = Risk$ / (lot * 100 * 0.1)
+  Risk at each level = Profit of previous level
 """
 
-CHALLENGE_LEVELS = [
-    {"level": 1,  "balance": 20.0,    "lot": 0.02, "sl": 15, "tp": 20},
-    {"level": 2,  "balance": 44.0,    "lot": 0.03, "sl": 15, "tp": 20},
-    {"level": 3,  "balance": 76.0,    "lot": 0.04, "sl": 15, "tp": 20},
-    {"level": 4,  "balance": 120.0,   "lot": 0.05, "sl": 15, "tp": 20},
-    {"level": 5,  "balance": 180.0,   "lot": 0.07, "sl": 15, "tp": 20},
-    {"level": 6,  "balance": 260.0,   "lot": 0.09, "sl": 15, "tp": 20},
-    {"level": 7,  "balance": 364.0,   "lot": 0.12, "sl": 15, "tp": 20},
-    {"level": 8,  "balance": 500.0,   "lot": 0.15, "sl": 15, "tp": 20},
-    {"level": 9,  "balance": 670.0,   "lot": 0.19, "sl": 15, "tp": 20},
-    {"level": 10, "balance": 880.0,   "lot": 0.24, "sl": 15, "tp": 20},
-    {"level": 11, "balance": 1140.0,  "lot": 0.30, "sl": 15, "tp": 20},
-    {"level": 12, "balance": 1460.0,  "lot": 0.37, "sl": 15, "tp": 20},
-    {"level": 13, "balance": 1850.0,  "lot": 0.46, "sl": 15, "tp": 20},
-    {"level": 14, "balance": 2320.0,  "lot": 0.56, "sl": 15, "tp": 20},
-    {"level": 15, "balance": 2880.0,  "lot": 0.68, "sl": 15, "tp": 20},
-    {"level": 16, "balance": 3540.0,  "lot": 0.82, "sl": 15, "tp": 20},
-    {"level": 17, "balance": 4300.0,  "lot": 0.98, "sl": 15, "tp": 20},
-    {"level": 18, "balance": 5180.0,  "lot": 1.18, "sl": 15, "tp": 20},
-    {"level": 19, "balance": 6190.0,  "lot": 1.40, "sl": 15, "tp": 20},
-    {"level": 20, "balance": 7340.0,  "lot": 1.65, "sl": 15, "tp": 20},
-    {"level": 21, "balance": 8640.0,  "lot": 1.94, "sl": 15, "tp": 20},
-    {"level": 22, "balance": 10110.0, "lot": 2.27, "sl": 15, "tp": 20},
-    {"level": 23, "balance": 11760.0, "lot": 2.64, "sl": 15, "tp": 20},
-    {"level": 24, "balance": 13610.0, "lot": 3.06, "sl": 15, "tp": 20},
-    {"level": 25, "balance": 15680.0, "lot": 3.53, "sl": 15, "tp": 20},
-    {"level": 26, "balance": 17990.0, "lot": 4.06, "sl": 15, "tp": 20},
-    {"level": 27, "balance": 20560.0, "lot": 4.65, "sl": 15, "tp": 20},
-    {"level": 28, "balance": 23420.0, "lot": 5.31, "sl": 15, "tp": 20},
-    {"level": 29, "balance": 26590.0, "lot": 6.04, "sl": 15, "tp": 20},
-    {"level": 30, "balance": 30100.0, "lot": 6.86, "sl": 15, "tp": 20},
+LEVELS = [
+    ( 1,     20.00,   0.03, 15.000000, 20),
+    ( 2,     26.00,   0.04, 15.000000, 20),
+    ( 3,     34.00,   0.05, 16.000000, 20),
+    ( 4,     44.00,   0.07, 14.285714, 20),
+    ( 5,     58.00,   0.09, 15.555556, 20),
+    ( 6,     76.00,   0.11, 16.363636, 20),
+    ( 7,     98.00,   0.14, 15.714286, 20),
+    ( 8,    126.00,   0.19, 14.736842, 20),
+    ( 9,    164.00,   0.24, 15.833333, 20),
+    (10,    212.00,   0.32, 15.000000, 20),
+    (11,    276.00,   0.41, 15.609756, 20),
+    (12,    358.00,   0.54, 15.185185, 20),
+    (13,    466.00,   0.70, 15.428571, 20),
+    (14,    606.00,   0.91, 15.400000, 20),
+    (15,    788.00,   1.18, 15.423729, 20),
+    (16,   1024.00,   1.54, 15.324675, 20),
+    (17,   1332.00,   2.00, 15.400000, 20),
+    (18,   1732.00,   2.60, 15.384615, 20),
+    (19,   2252.00,   3.37, 15.430267, 20),
+    (20,   2926.00,   4.39, 15.353075, 20),
+    (21,   3804.00,   5.70, 15.403509, 20),
+    (22,   4944.00,   7.41, 15.384615, 20),
+    (23,   6426.00,   9.64, 15.373444, 20),
+    (24,   8354.00,  12.53, 15.387071, 20),
+    (25,  10860.00,  16.28, 15.393120, 20),
+    (26,  14116.00,  21.17, 15.380255, 20),
+    (27,  18350.00,  27.52, 15.385174, 20),
+    (28,  23854.00,  35.78, 15.382895, 20),
+    (29,  31010.00,  46.51, 15.385939, 20),
+    (30,  40312.00,  60.46, 15.385379, 20),
 ]
 
 
 def get_current_level(balance: float) -> dict:
-    """Return the challenge level dict matching the current account balance."""
-    current = CHALLENGE_LEVELS[0]
-    for lvl in CHALLENGE_LEVELS:
-        if balance >= lvl["balance"]:
-            current = lvl
+    """Return level config for current balance."""
+    current = LEVELS[0]
+    for row in LEVELS:
+        level, min_bal, lot, sl_pips, tp_pips = row
+        if balance >= min_bal:
+            current = row
         else:
             break
-    return current
-
-
-def get_level_by_number(level_num: int) -> dict:
-    """Return level dict by level number (1-indexed)."""
-    for lvl in CHALLENGE_LEVELS:
-        if lvl["level"] == level_num:
-            return lvl
-    return CHALLENGE_LEVELS[-1]
+    level, min_bal, lot, sl_pips, tp_pips = current
+    return {
+        "level":   level,
+        "lot":     lot,
+        "sl_pips": sl_pips,
+        "tp_pips": tp_pips,
+    }
