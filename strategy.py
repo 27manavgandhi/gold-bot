@@ -184,36 +184,37 @@ def evaluate_signal(sl_pips: float = 15, tp_pips: float = 20) -> Optional[dict]:
     if not is_trading_session():
         return None
 
+    spread_info = mt5.symbol_info(MT5_SYMBOL)
+    current_spread = spread_info.spread if spread_info else 999
     if not check_spread():
-        logger.debug("Signal blocked: spread too high.")
+        logger.info(f"BLOCKED >> Spread too high: {current_spread} > {SPREAD_MAX_POINTS}")
         return None
 
+    acct = mt5.account_info()
+    current_leverage = acct.leverage if acct else 0
     if not check_leverage():
-        logger.debug("Signal blocked: leverage insufficient.")
+        logger.info(f"BLOCKED >> Leverage too low: {current_leverage} < {LEVERAGE_MIN}")
         return None
 
     # ── Fetch M1 data ─────────────────────────────────────────────────────────
     min_bars = max(DONCHIAN_PERIOD, MACD_SLOW + MACD_SIGNAL, MIN_RANGE_CANDLES) + 15
     df = _fetch_rates(mt5.TIMEFRAME_M1, BARS_NEEDED)
     if df is None or len(df) < min_bars:
-        logger.warning("Insufficient M1 bars for signal evaluation.")
+        logger.warning(f"BLOCKED >> Insufficient M1 bars: got {0 if df is None else len(df)}, need {min_bars}")
         return None
 
-    # ── Range filter (MOST IMPORTANT) ─────────────────────────────────────────
-    if not _market_is_moving(df):
+    # ── Range filter ──────────────────────────────────────────────────────────
+    recent = df.iloc[-(MIN_RANGE_CANDLES + 1):-1]
+    price_range = recent["high"].max() - recent["low"].min()
+    if price_range < MIN_RANGE_PRICE:
+        logger.info(f"BLOCKED >> Range too small: {price_range:.3f} < {MIN_RANGE_PRICE} (last {MIN_RANGE_CANDLES} candles)")
         return None
 
     # ── Indicators ────────────────────────────────────────────────────────────
-
-    # Donchian Channel — shift(1) means we use the CONFIRMED band, not the current forming one
-    # This is a real breakout: price must close above the highest high of the last N candles
     df["dc_upper"] = df["high"].rolling(DONCHIAN_PERIOD).max().shift(1)
     df["dc_lower"] = df["low"].rolling(DONCHIAN_PERIOD).min().shift(1)
-
-    # MACD for momentum confirmation on M1
     _, _, df["macd_hist"] = _compute_macd(df["close"], MACD_FAST, MACD_SLOW, MACD_SIGNAL)
 
-    # Use last confirmed closed candle (-2), prev candle (-3)
     last = df.iloc[-2]
     prev = df.iloc[-3]
 
@@ -223,50 +224,48 @@ def evaluate_signal(sl_pips: float = 15, tp_pips: float = 20) -> Optional[dict]:
     macd_hist_prev = prev["macd_hist"]
 
     if pd.isna(dc_upper) or pd.isna(dc_lower) or pd.isna(macd_hist_now):
+        logger.info("BLOCKED >> Indicator NaN — not enough history yet")
         return None
 
-    # MACD histogram must be expanding = momentum is accelerating RIGHT NOW
-    macd_bull = (
-        macd_hist_now > MACD_HIST_MIN          # above minimum threshold
-        and macd_hist_now > macd_hist_prev      # expanding upward
-    )
-    macd_bear = (
-        macd_hist_now < -MACD_HIST_MIN         # below minimum threshold (negative)
-        and macd_hist_now < macd_hist_prev      # expanding downward
-    )
+    macd_bull = macd_hist_now > MACD_HIST_MIN and macd_hist_now > macd_hist_prev
+    macd_bear = macd_hist_now < -MACD_HIST_MIN and macd_hist_now < macd_hist_prev
 
     # ── M5 Bias ───────────────────────────────────────────────────────────────
     m5_bias = get_m5_bias()
+
+    # ── Full diagnostic every candle so we know exactly what's happening ──────
+    logger.info(
+        f"SCAN >> M5={m5_bias} | close={last['close']:.3f} "
+        f"DC_hi={dc_upper:.3f} DC_lo={dc_lower:.3f} | "
+        f"MACD={macd_hist_now:.5f}(prev={macd_hist_prev:.5f}) "
+        f"bull={macd_bull} bear={macd_bear} | range={price_range:.3f}"
+    )
+
     if m5_bias is None:
-        logger.debug("Signal blocked: no clear M5 EMA trend.")
+        logger.info("BLOCKED >> No clear M5 EMA trend (EMA20 vs EMA50 flat or slope conflict)")
         return None
 
     # ── Donchian Breakout Decision ────────────────────────────────────────────
     direction = None
 
-    # BUY signal:
-    #   1. M5 is in uptrend (EMA20 > EMA50 and sloping up)
-    #   2. M1 closed ABOVE the Donchian upper band (real breakout of N-candle high)
-    #   3. MACD histogram is positive and expanding (momentum confirms breakout)
-    if (
-        m5_bias == "LONG"
-        and last["close"] > dc_upper
-        and macd_bull
-    ):
+    if m5_bias == "LONG" and last["close"] > dc_upper and macd_bull:
         direction = "BUY"
-
-    # SELL signal:
-    #   1. M5 is in downtrend (EMA20 < EMA50 and sloping down)
-    #   2. M1 closed BELOW the Donchian lower band (real breakout of N-candle low)
-    #   3. MACD histogram is negative and expanding (momentum confirms breakout)
-    elif (
-        m5_bias == "SHORT"
-        and last["close"] < dc_lower
-        and macd_bear
-    ):
+    elif m5_bias == "SHORT" and last["close"] < dc_lower and macd_bear:
         direction = "SELL"
 
     if direction is None:
+        if m5_bias == "LONG":
+            logger.info(
+                f"NO SIGNAL >> M5=LONG | "
+                f"close({last['close']:.3f})>DC_hi({dc_upper:.3f})={last['close']>dc_upper} | "
+                f"macd_bull={macd_bull} [hist={macd_hist_now:.5f} need>{MACD_HIST_MIN} & expanding]"
+            )
+        else:
+            logger.info(
+                f"NO SIGNAL >> M5=SHORT | "
+                f"close({last['close']:.3f})<DC_lo({dc_lower:.3f})={last['close']<dc_lower} | "
+                f"macd_bear={macd_bear} [hist={macd_hist_now:.5f} need<-{MACD_HIST_MIN} & expanding]"
+            )
         return None
 
     # ── Price levels ──────────────────────────────────────────────────────────
