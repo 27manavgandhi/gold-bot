@@ -92,7 +92,7 @@ BARS_NEEDED: int = 120    # enough history for MACD(26,9) + Donchian(10) + buffe
 # XAUUSDm: 1 pip = 0.10 price move
 # MT5 point = 0.01 for gold, so 10 points = 1 pip
 # Example: SL=15 pips = 1.50 price move, TP=20 pips = 2.00 price move
-PIP_POINTS: int = 10      # MT5 points per pip for XAUUSDm
+PIP_POINTS: int = 1   # MT5 points per pip for XAUUSDm
 
 # ── ATR (legacy, kept for compatibility) ─────────────────────────────────────
 # Not used in the new Donchian strategy but kept so imports don't break
