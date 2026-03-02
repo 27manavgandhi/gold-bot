@@ -50,7 +50,7 @@ MIN_RANGE_CANDLES: int  = 10      # look-back window for range check
 MIN_RANGE_PRICE: float  = 1.5     # minimum price range in last N candles (XAUUSDm units)
 
 # ── Spread & Leverage ─────────────────────────────────────────────────────────
-SPREAD_MAX_POINTS: int = 600      # maximum allowed spread in MT5 points
+SPREAD_MAX_POINTS: int = 25       # maximum allowed spread in MT5 points
 LEVERAGE_MIN: int      = 2000     # minimum required account leverage
 
 # ── Risk Management ───────────────────────────────────────────────────────────
@@ -88,11 +88,11 @@ M1_TF_INT: int = 1
 M5_TF_INT: int = 5
 BARS_NEEDED: int = 120    # enough history for MACD(26,9) + Donchian(10) + buffer
 
-# ── Pip Definitions ───────────────────────────────────────────────────────────
-# XAUUSDm: 1 pip = 0.10 price move
-# MT5 point = 0.01 for gold, so 10 points = 1 pip
-# Example: SL=15 pips = 1.50 price move, TP=20 pips = 2.00 price move
-PIP_POINTS: int = 1   # MT5 points per pip for XAUUSDm
+# ── Pip Definitions ──────────────────────────────────────────────────────────
+# XAUUSDm at Exness: 1 pip = 0.10 price movement (confirmed from broker spec)
+# Example: entry=5120.00, TP=5122.00 (20 pips), SL=5118.50 (15 pips)
+PIP_SIZE: float = 0.10    # 1 pip = 0.10 price on XAUUSDm (Exness)
+PIP_POINTS: int = 10      # kept for legacy compatibility only
 
 # ── ATR (legacy, kept for compatibility) ─────────────────────────────────────
 # Not used in the new Donchian strategy but kept so imports don't break
