@@ -45,7 +45,7 @@ from config import (
     MT5_SYMBOL,
     NY_CLOSE_UTC,
     NY_OPEN_UTC,
-    PIP_POINTS,
+    PIP_SIZE,
     SPREAD_MAX_POINTS,
 )
 from logger import logger
@@ -277,8 +277,7 @@ def evaluate_signal(sl_pips: float = 15, tp_pips: float = 20) -> Optional[dict]:
     if tick is None:
         return None
 
-    point = symbol_info.point
-    pip   = PIP_POINTS * point
+    pip   = PIP_SIZE
 
     if direction == "BUY":
         entry = tick.ask
@@ -317,8 +316,7 @@ def check_early_exit(position) -> bool:
     if symbol_info is None:
         return False
 
-    point = symbol_info.point
-    pip   = PIP_POINTS * point
+    pip   = PIP_SIZE
 
     tick = mt5.symbol_info_tick(MT5_SYMBOL)
     if tick is None:
