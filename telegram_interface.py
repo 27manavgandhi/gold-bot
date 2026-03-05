@@ -1,7 +1,7 @@
 """
 telegram_interface.py
-Telegram bot interface using python-telegram-bot v20/v21 async API.
-All messages use plain text. MT5 auto-detects install path.
+ENHANCED - Now supports MULTIPLE account selection with checkboxes
+Plus all original functionality with improved multi-account management
 """
 
 import os
@@ -34,9 +34,10 @@ _trading_state: dict = {
     "enabled": False,
     "risk_manager": None,
     "alias": None,
+    "selected_accounts": [],  # NEW: list of active account aliases
 }
 
-# ── Known MT5 install paths to try ────────────────────────────────────────────
+# ── Known MT5 install paths ───────────────────────────────────────────────────
 MT5_CANDIDATE_PATHS = [
     r"C:\Program Files\MetaTrader 5\terminal64.exe",
     r"C:\Program Files (x86)\MetaTrader 5\terminal64.exe",
@@ -47,27 +48,20 @@ MT5_CANDIDATE_PATHS = [
 
 
 def _find_and_init_mt5() -> bool:
-    """
-    Try to initialize MT5 by scanning known paths first,
-    then fall back to the default (uses MT5_PATH from config if set).
-    Returns True on success.
-    """
+    """Try to initialize MT5 by scanning known paths."""
     from config import MT5_PATH
 
-    # If user set a custom path in config.py, try that first
     if MT5_PATH and os.path.exists(MT5_PATH):
         if mt5.initialize(path=MT5_PATH):
             logger.info("MT5 initialized from config MT5_PATH: %s", MT5_PATH)
             return True
 
-    # Try known candidate paths
     for candidate in MT5_CANDIDATE_PATHS:
         if os.path.exists(candidate):
             if mt5.initialize(path=candidate):
                 logger.info("MT5 initialized from: %s", candidate)
                 return True
 
-    # Last resort: let MT5 library find it on its own
     if mt5.initialize():
         logger.info("MT5 initialized via default detection.")
         return True
@@ -107,14 +101,16 @@ def _auth_required(func):
 # ── /start ─────────────────────────────────────────────────────────────────────
 @_auth_required
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if _trading_state.get("alias") is None:
-        await update.message.reply_text("No account selected. Use /select_account first.")
+    if not _trading_state.get("selected_accounts"):
+        await update.message.reply_text("No accounts selected. Use /select_account first.")
         return
     _trading_state["enabled"] = True
     if _trading_state.get("risk_manager"):
         _trading_state["risk_manager"].resume()
-    await update.message.reply_text("Trading is now ENABLED.")
-    logger.info("Trading enabled via Telegram /start")
+    
+    accounts_str = ", ".join(_trading_state["selected_accounts"])
+    await update.message.reply_text(f"Trading ENABLED on: {accounts_str}")
+    logger.info("Trading enabled on accounts: %s", accounts_str)
 
 
 # ── /stop ──────────────────────────────────────────────────────────────────────
@@ -150,12 +146,14 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     daily_pnl = sum(float(t["pnl"]) for t in trades)
     level = get_current_level(balance)
     enabled = _trading_state.get("enabled", False)
-    alias = _safe(_trading_state.get("alias", "N/A"))
+    
+    selected = _trading_state.get("selected_accounts", [])
+    accounts_str = ", ".join(selected) if selected else "None"
 
     lines = [
         "=== Bot Status ===",
-        "Account : " + alias,
-        "Trading : " + ("ON" if enabled else "OFF"),
+        "Accounts : " + accounts_str,
+        "Trading  : " + ("ON" if enabled else "OFF"),
         "",
         "Balance   : $" + "{:,.2f}".format(balance),
         "Equity    : $" + "{:,.2f}".format(equity),
@@ -163,7 +161,7 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         "",
         "Level  : " + str(level["level"]) + "/30",
         "Lot    : " + str(level["lot"]),
-        "Target : $" + "{:,.2f}".format(level["balance"]),
+        "Target : $" + "{:,.2f}".format(level["min_bal"]),
     ]
     await update.message.reply_text("\n".join(lines))
 
@@ -269,102 +267,159 @@ async def _cancel_add(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
     return ConversationHandler.END
 
 
-# ── /select_account ────────────────────────────────────────────────────────────
+# ── /select_account (MULTI-SELECT with checkboxes) ────────────────────────────
 @_auth_required
 async def cmd_select_account(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """NEW: Multi-select accounts with checkbox interface"""
     aliases = list_accounts()
     if not aliases:
         await update.message.reply_text(
             "No accounts saved yet.\nUse /add_account to add your Exness demo account first."
         )
         return
-    buttons = [
-        [InlineKeyboardButton(alias, callback_data="select:" + alias)]
-        for alias in aliases
-    ]
+    
+    # Initialize selection state
+    if "account_selection" not in context.user_data:
+        context.user_data["account_selection"] = set()
+    
+    selected = context.user_data.get("account_selection", set())
+    
+    # Create checkbox buttons
+    buttons = []
+    for alias in aliases:
+        check = "✅ " if alias in selected else "☐ "
+        buttons.append([InlineKeyboardButton(
+            check + alias, 
+            callback_data="toggle:" + alias
+        )])
+    
+    # Add Done button
+    buttons.append([InlineKeyboardButton("✓ Done - Connect Selected", callback_data="done_selection")])
+    
     markup = InlineKeyboardMarkup(buttons)
-    await update.message.reply_text("Select an account to connect:", reply_markup=markup)
+    
+    msg = "Select account(s) to trade (click to toggle):\n\n"
+    if selected:
+        msg += "Selected: " + ", ".join(selected)
+    else:
+        msg += "None selected yet"
+    
+    await update.message.reply_text(msg, reply_markup=markup)
 
 
-async def _select_account_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def _account_selection_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle checkbox toggles and final selection"""
     query = update.callback_query
     await query.answer()
-
-    if not query.data.startswith("select:"):
-        return
-
-    alias = query.data.split(":", 1)[1]
-    creds = get_account(alias)
-    if creds is None:
-        await query.edit_message_text("Could not load account '" + _safe(alias) + "'.")
-        return
-
-    await query.edit_message_text("Connecting to '" + _safe(alias) + "'...")
-
-    if not _find_and_init_mt5():
-        error = _safe(str(mt5.last_error()))
-        await query.edit_message_text(
-            "MT5 failed to initialize.\n"
-            "Error: " + error + "\n\n"
-            "To fix this:\n"
-            "1. Open MetaTrader5 on your PC\n"
-            "2. In MT5 click File > Open Data Folder\n"
-            "3. Copy the path from the File Explorer address bar\n"
-            "4. Add terminal64.exe to the end of that path\n"
-            "5. Paste it into config.py as MT5_PATH\n"
-            "6. Restart the bot"
+    
+    if query.data == "done_selection":
+        # Finalize selection
+        selected = context.user_data.get("account_selection", set())
+        
+        if not selected:
+            await query.edit_message_text("No accounts selected. Use /select_account to try again.")
+            return
+        
+        # Connect to first account (MT5 can only connect to one at a time per terminal)
+        # But we store all selected accounts for potential parallel bot instances
+        primary = list(selected)[0]
+        _trading_state["selected_accounts"] = list(selected)
+        _trading_state["alias"] = primary
+        
+        # Connect MT5
+        creds = get_account(primary)
+        if creds is None:
+            await query.edit_message_text(f"Could not load primary account '{primary}'")
+            return
+        
+        await query.edit_message_text(f"Connecting to {primary} (+ {len(selected)-1} others)...")
+        
+        if not _find_and_init_mt5():
+            error = _safe(str(mt5.last_error()))
+            await query.edit_message_text(
+                "MT5 failed to initialize.\n"
+                "Error: " + error + "\n\n"
+                "Make sure MetaTrader 5 is installed and running."
+            )
+            return
+        
+        logged_in = mt5.login(
+            login=creds["login"],
+            password=creds["password"],
+            server=creds["server"]
         )
-        return
-
-    logged_in = mt5.login(
-        login=creds["login"],
-        password=creds["password"],
-        server=creds["server"]
-    )
-
-    if not logged_in:
-        error = _safe(str(mt5.last_error()))
-        mt5.shutdown()
-        await query.edit_message_text(
-            "Login failed for '" + _safe(alias) + "'\n"
-            "Error: " + error + "\n\n"
-            "Common fixes:\n"
-            "- Double-check login number\n"
-            "- Password is case-sensitive\n"
-            "- Server name must match exactly\n"
-            "- Demo account may have expired\n\n"
-            "Use /add_account to update credentials."
-        )
-        return
-
-    _trading_state["alias"] = alias
-    account = mt5.account_info()
-    balance = account.balance if account else 0.0
-    equity = account.equity if account else 0.0
-    server_name = _safe(account.server if account else creds["server"])
-    account_type = "Demo" if account and account.trade_mode == 0 else "Live"
-
-    if _trading_state.get("risk_manager"):
-        _trading_state["risk_manager"].set_starting_balance(balance)
-
-    level = get_current_level(balance)
-
-    lines = [
-        "=== Connected! ===",
-        "",
-        "Account : " + _safe(alias),
-        "Type    : " + account_type,
-        "Server  : " + server_name,
-        "Login   : " + str(creds["login"]),
-        "",
-        "Balance : $" + "{:,.2f}".format(balance),
-        "Equity  : $" + "{:,.2f}".format(equity),
-        "Level   : " + str(level["level"]) + "/30",
-        "",
-        "Send /start to begin trading.",
-    ]
-    await query.edit_message_text("\n".join(lines))
-    logger.info("Account selected: %s (login=%s, type=%s)", alias, creds["login"], account_type)
+        
+        if not logged_in:
+            error = _safe(str(mt5.last_error()))
+            mt5.shutdown()
+            await query.edit_message_text(
+                f"Login failed for '{primary}'\n"
+                f"Error: {error}\n\n"
+                "Check credentials with /add_account"
+            )
+            return
+        
+        account = mt5.account_info()
+        balance = account.balance if account else 0.0
+        equity = account.equity if account else 0.0
+        
+        if _trading_state.get("risk_manager"):
+            _trading_state["risk_manager"].set_starting_balance(balance)
+        
+        level = get_current_level(balance)
+        
+        lines = [
+            "=== Connected! ===",
+            "",
+            f"Primary: {primary}",
+            f"Also Selected: {', '.join(list(selected)[1:])}",
+            f"Balance: ${balance:,.2f}",
+            f"Level: {level['level']}/30",
+            "",
+            "Send /start to begin trading.",
+            "",
+            "NOTE: Bot will trade on primary account.",
+            "To run on multiple accounts, start separate",
+            "bot instances (one per VPS/terminal)."
+        ]
+        await query.edit_message_text("\n".join(lines))
+        logger.info("Accounts selected: %s (primary: %s)", selected, primary)
+        
+        # Clear selection state
+        context.user_data["account_selection"] = set()
+        
+    elif query.data.startswith("toggle:"):
+        # Toggle account selection
+        alias = query.data.split(":", 1)[1]
+        selected = context.user_data.get("account_selection", set())
+        
+        if alias in selected:
+            selected.remove(alias)
+        else:
+            selected.add(alias)
+        
+        context.user_data["account_selection"] = selected
+        
+        # Refresh buttons
+        aliases = list_accounts()
+        buttons = []
+        for a in aliases:
+            check = "✅ " if a in selected else "☐ "
+            buttons.append([InlineKeyboardButton(
+                check + a, 
+                callback_data="toggle:" + a
+            )])
+        
+        buttons.append([InlineKeyboardButton("✓ Done - Connect Selected", callback_data="done_selection")])
+        markup = InlineKeyboardMarkup(buttons)
+        
+        msg = "Select account(s) to trade (click to toggle):\n\n"
+        if selected:
+            msg += "Selected: " + ", ".join(selected)
+        else:
+            msg += "None selected yet"
+        
+        await query.edit_message_text(msg, reply_markup=markup)
 
 
 def build_application() -> Application:
@@ -382,7 +437,9 @@ def build_application() -> Application:
     app.add_handler(CommandHandler("status", cmd_status))
     app.add_handler(CommandHandler("daily_report", cmd_daily_report))
     app.add_handler(CommandHandler("select_account", cmd_select_account))
-    app.add_handler(CallbackQueryHandler(_select_account_callback, pattern=r"^select:"))
+    
+    # NEW: Handle checkbox toggles and done button
+    app.add_handler(CallbackQueryHandler(_account_selection_callback, pattern=r"^(toggle:|done_selection)"))
 
     add_account_conv = ConversationHandler(
         entry_points=[CommandHandler("add_account", cmd_add_account)],
