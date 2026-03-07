@@ -26,6 +26,9 @@ from config import ALLOWED_CHAT_IDS, TELEGRAM_TOKEN
 from execution import close_all_positions
 from logger import compute_daily_stats, read_today_trades, logger
 
+# analysis helpers (weekday/session statistics)
+from analyse_trades import load_trades, summary_by_weekday, summary_by_session
+
 # ── Conversation states ────────────────────────────────────────────────────────
 ADD_LOGIN, ADD_PASSWORD, ADD_SERVER, ADD_ALIAS = range(4)
 
@@ -191,6 +194,25 @@ async def cmd_daily_report(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         "Level   : " + str(level["level"]) + "/30",
         "Balance : $" + "{:,.2f}".format(balance),
     ]
+
+    # include a quick weekday/session breakdown using full history
+    try:
+        full = load_trades()
+        if not full.empty:
+            wkd = summary_by_weekday(full)
+            sess = summary_by_session(full)
+            lines.append("")
+            lines.append("=== All-time performance ===")
+            # show just win rate by weekday (shortened)
+            wk_lines = [f"{idx}: {row.win_rate:.1f}% ({int(row.total_trades)} trades)" for idx,row in wkd.iterrows()]
+            lines.append("Weekdays – " + "; ".join(wk_lines))
+            # show session pnl summary
+            sess_lines = [f"{idx}:{row.total_pnl:+.0f}" for idx,row in sess.iterrows()]
+            lines.append("Sessions – " + "; ".join(sess_lines))
+    except Exception:
+        # if pandas not available or something fails, ignore
+        pass
+
     await update.message.reply_text("\n".join(lines))
 
 
@@ -409,7 +431,7 @@ async def send_daily_report_to_all(app: Application) -> None:
 
     lines = [
         "=== Automated Daily Report ===",
-        "Date: " + datetime.utcnow().strftime("%Y-%m-%d") + " UTC",
+        "Date: " + datetime.utcnow().strftime("Y-%m-%d") + " UTC",
         "",
         "Total Trades : " + str(stats["total"]),
         "Wins         : " + str(stats["wins"]),
@@ -421,6 +443,18 @@ async def send_daily_report_to_all(app: Application) -> None:
         "Level   : " + str(level["level"]) + "/30",
         "Balance : $" + "{:,.2f}".format(balance),
     ]
+
+    # quick all-time metrics like weekday win rate
+    try:
+        full = load_trades()
+        if not full.empty:
+            wkd = summary_by_weekday(full)
+            wk_lines = [f"{idx}:{row.win_rate:.1f}%" for idx,row in wkd.iterrows()]
+            lines.append("")
+            lines.append("All-time weekdays: " + "; ".join(wk_lines))
+    except Exception:
+        pass
+
     msg = "\n".join(lines)
     for chat_id in ALLOWED_CHAT_IDS:
         try:
