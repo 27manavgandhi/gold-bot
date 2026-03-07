@@ -113,9 +113,23 @@ nssm start GoldBot
 - `data/trade_logs.csv` – all trade records
 - Console output with timestamps
 
+### 11. Performance Analysis
+
+A helper script `analyse_trades.py` is included to summarise results by
+weekday and session.  Run it manually to see which days of the week or which
+session windows have produced the highest win rate / PnL:
+
+```bash
+python analyse_trades.py
+```
+
+The Telegram daily report also includes a quick overview of all‑time weekday
+performance.
+
+
 ---
 
-### 11. Challenge Ladder Summary
+### 12. Challenge Ladder Summary
 
 30 levels from $20 balance / 0.02 lot → $30,100 balance / 6.86 lot.
 SL = 15 pips, TP = 20 pips on all levels.
