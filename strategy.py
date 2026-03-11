@@ -1,25 +1,14 @@
 """
 strategy.py
-Donchian Channel Breakout Strategy for XAUUSD — 20-pip challenge.
+FIXED - Donchian Channel Breakout Strategy with STRENGTHENED filters
 
-Entry logic (as per Trading Rush video):
-  - BUY  when M1 price breaks ABOVE the Donchian upper band (highest high of last N candles)
-          AND M5 EMA20 > EMA50 with active upward slope (uptrend bias)
-          AND MACD histogram is positive and expanding (momentum live NOW)
-          AND minimum price range check passes (market is actually moving)
-
-  - SELL when M1 price breaks BELOW the Donchian lower band (lowest low of last N candles)
-          AND M5 EMA20 < EMA50 with active downward slope (downtrend bias)
-          AND MACD histogram is negative and expanding
-          AND minimum price range check passes
-
-  All three filters must align. If market is flat/ranging, no trade is taken.
-
-Key design principles from the video:
-  - Trade ONLY in trending markets (Donchian + MACD prove the trend is live)
-  - Skip when market is slow/ranging (range filter)
-  - No forced daily trade count - take trades only when setup is genuine
-  - SL=15 pips, TP=20 pips fixed per challenge level (1.3:1 RR as video prescribes)
+Changes from previous version:
+1. Stricter MACD threshold (0.15 vs 0.05)
+2. Longer Donchian period (15 vs 10 candles)
+3. Larger range requirement (3.0 pips over 20 candles vs 1.5 over 10)
+4. Tighter spread check (50 vs 600 points)
+5. Additional momentum expansion verification
+6. Stronger M5 bias confirmation
 """
 
 from datetime import datetime, timezone
@@ -51,8 +40,6 @@ from config import (
 from logger import logger
 
 
-# ── helpers ───────────────────────────────────────────────────────────────────
-
 def _fetch_rates(timeframe: int, count: int) -> Optional[pd.DataFrame]:
     """Fetch OHLCV bars from MT5 and return as DataFrame."""
     rates = mt5.copy_rates_from_pos(MT5_SYMBOL, timeframe, 0, count)
@@ -77,8 +64,6 @@ def _compute_macd(series: pd.Series, fast: int, slow: int, signal: int):
     return macd_line, signal_line, histogram
 
 
-# ── session / pre-checks ──────────────────────────────────────────────────────
-
 def is_trading_session() -> bool:
     """Return True if current UTC time is within London or NY session."""
     now_utc = datetime.now(timezone.utc)
@@ -91,6 +76,7 @@ def is_trading_session() -> bool:
 
     in_london = london_open  <= current_minutes < london_close
     in_ny     = ny_open      <= current_minutes < ny_close
+    
     return in_london or in_ny
 
 
@@ -110,75 +96,47 @@ def check_leverage() -> bool:
     return info.leverage >= LEVERAGE_MIN
 
 
-# ── M5 trend bias ─────────────────────────────────────────────────────────────
-
 def get_m5_bias() -> Optional[str]:
     """
-    Determine trend bias from M5 EMA20/EMA50 crossover + slope check.
-    Returns 'LONG', 'SHORT', or None.
-
-    The video says MACD/Donchian strategies work in TRENDING markets.
-    We use M5 EMA to confirm the higher-timeframe trend is active RIGHT NOW,
-    not just historically crossed. Slope check (vs 5 candles ago) ensures
-    EMA is actively moving, not just sitting from an old crossover.
+    STRENGTHENED M5 bias check with additional confirmation.
+    Now requires:
+    1. EMA crossover (20 > 50 or 20 < 50)
+    2. Active slope (current vs 5 candles ago)
+    3. SUSTAINED movement (current vs 10 candles ago) - NEW
     """
     df = _fetch_rates(mt5.TIMEFRAME_M5, BARS_NEEDED)
-    if df is None or len(df) < EMA_SLOW + 10:
+    if df is None or len(df) < EMA_SLOW + 15:
         return None
 
     df["ema_fast"] = _compute_ema(df["close"], EMA_FAST)
     df["ema_slow"] = _compute_ema(df["close"], EMA_SLOW)
 
-    last  = df.iloc[-2]   # confirmed closed candle
-    prev5 = df.iloc[-7]   # 5 candles back — slope confirmation
+    last   = df.iloc[-2]
+    prev5  = df.iloc[-7]
+    prev10 = df.iloc[-12]  # NEW: additional confirmation
 
     ema_fast_now  = last["ema_fast"]
-    ema_fast_ago  = prev5["ema_fast"]
+    ema_fast_ago5 = prev5["ema_fast"]
+    ema_fast_ago10 = prev10["ema_fast"]
 
-    # EMA must be crossed AND actively sloping in that direction
-    if ema_fast_now > last["ema_slow"] and ema_fast_now > ema_fast_ago:
+    # LONG: crossover + immediate slope + sustained slope
+    if (ema_fast_now > last["ema_slow"] and 
+        ema_fast_now > ema_fast_ago5 and
+        ema_fast_now > ema_fast_ago10):
         return "LONG"
-    elif ema_fast_now < last["ema_slow"] and ema_fast_now < ema_fast_ago:
+    
+    # SHORT: crossover + immediate slope + sustained slope
+    elif (ema_fast_now < last["ema_slow"] and 
+          ema_fast_now < ema_fast_ago5 and
+          ema_fast_now < ema_fast_ago10):
         return "SHORT"
 
     return None
 
 
-# ── range filter ──────────────────────────────────────────────────────────────
-
-def _market_is_moving(df: pd.DataFrame) -> bool:
-    """
-    Checks that price has moved enough over recent candles.
-    If range < MIN_RANGE_PRICE, the market is ranging/dead — no trade.
-    This single filter eliminates all 0% win-rate time windows from our data.
-    """
-    recent = df.iloc[-(MIN_RANGE_CANDLES + 1):-1]
-    price_range = recent["high"].max() - recent["low"].min()
-    if price_range < MIN_RANGE_PRICE:
-        logger.debug(
-            f"Range filter: blocked. Range={price_range:.3f} < {MIN_RANGE_PRICE} "
-            f"(last {MIN_RANGE_CANDLES} candles)"
-        )
-        return False
-    return True
-
-
-# ── main signal ───────────────────────────────────────────────────────────────
-
 def evaluate_signal(sl_pips: float = 15, tp_pips: float = 20) -> Optional[dict]:
     """
-    Main signal evaluation using Donchian Channel breakout + MACD + M5 EMA.
-
-    Returns signal dict or None.
-
-    Signal dict:
-    {
-        "direction": "BUY" | "SELL",
-        "entry":     float,
-        "sl":        float,
-        "tp":        float,
-        "atr":       float,
-    }
+    STRENGTHENED signal evaluation with all video strategy filters.
     """
     # ── Pre-checks ────────────────────────────────────────────────────────────
     if not is_trading_session():
@@ -197,13 +155,13 @@ def evaluate_signal(sl_pips: float = 15, tp_pips: float = 20) -> Optional[dict]:
         return None
 
     # ── Fetch M1 data ─────────────────────────────────────────────────────────
-    min_bars = max(DONCHIAN_PERIOD, MACD_SLOW + MACD_SIGNAL, MIN_RANGE_CANDLES) + 15
+    min_bars = max(DONCHIAN_PERIOD, MACD_SLOW + MACD_SIGNAL, MIN_RANGE_CANDLES) + 20
     df = _fetch_rates(mt5.TIMEFRAME_M1, BARS_NEEDED)
     if df is None or len(df) < min_bars:
         logger.warning(f"BLOCKED >> Insufficient M1 bars: got {0 if df is None else len(df)}, need {min_bars}")
         return None
 
-    # ── Range filter ──────────────────────────────────────────────────────────
+    # ── STRENGTHENED Range filter ────────────────────────────────────────────
     recent = df.iloc[-(MIN_RANGE_CANDLES + 1):-1]
     price_range = recent["high"].max() - recent["low"].min()
     if price_range < MIN_RANGE_PRICE:
@@ -217,54 +175,63 @@ def evaluate_signal(sl_pips: float = 15, tp_pips: float = 20) -> Optional[dict]:
 
     last = df.iloc[-2]
     prev = df.iloc[-3]
+    prev2 = df.iloc[-4]  # NEW: check sustained expansion
 
     dc_upper       = last["dc_upper"]
     dc_lower       = last["dc_lower"]
     macd_hist_now  = last["macd_hist"]
     macd_hist_prev = prev["macd_hist"]
+    macd_hist_prev2 = prev2["macd_hist"]
 
     if pd.isna(dc_upper) or pd.isna(dc_lower) or pd.isna(macd_hist_now):
         logger.info("BLOCKED >> Indicator NaN — not enough history yet")
         return None
 
-    macd_bull = macd_hist_now > MACD_HIST_MIN and macd_hist_now > macd_hist_prev
-    macd_bear = macd_hist_now < -MACD_HIST_MIN and macd_hist_now < macd_hist_prev
+    # STRENGTHENED MACD check: require SUSTAINED expansion over 2 candles
+    macd_bull = (macd_hist_now > MACD_HIST_MIN and 
+                 macd_hist_now > macd_hist_prev and
+                 macd_hist_prev > macd_hist_prev2)  # NEW
+    
+    macd_bear = (macd_hist_now < -MACD_HIST_MIN and 
+                 macd_hist_now < macd_hist_prev and
+                 macd_hist_prev < macd_hist_prev2)  # NEW
 
     # ── M5 Bias ───────────────────────────────────────────────────────────────
     m5_bias = get_m5_bias()
 
-    # ── Full diagnostic every candle so we know exactly what's happening ──────
+    # ── Full diagnostic ───────────────────────────────────────────────────────
     logger.info(
         f"SCAN >> M5={m5_bias} | close={last['close']:.3f} "
         f"DC_hi={dc_upper:.3f} DC_lo={dc_lower:.3f} | "
-        f"MACD={macd_hist_now:.5f}(prev={macd_hist_prev:.5f}) "
+        f"MACD={macd_hist_now:.5f}(prev={macd_hist_prev:.5f},prev2={macd_hist_prev2:.5f}) "
         f"bull={macd_bull} bear={macd_bear} | range={price_range:.3f}"
     )
 
     if m5_bias is None:
-        logger.info("BLOCKED >> No clear M5 EMA trend (EMA20 vs EMA50 flat or slope conflict)")
+        logger.info("BLOCKED >> No clear M5 EMA trend")
         return None
 
     # ── Donchian Breakout Decision ────────────────────────────────────────────
     direction = None
 
-    if m5_bias == "LONG" and last["close"] > dc_upper and macd_bull:
+    # CRITICAL: Only take breakout if ABOVE/BELOW by at least 0.5 pips (buffer)
+    if m5_bias == "LONG" and last["close"] > (dc_upper + 0.05) and macd_bull:
         direction = "BUY"
-    elif m5_bias == "SHORT" and last["close"] < dc_lower and macd_bear:
+    elif m5_bias == "SHORT" and last["close"] < (dc_lower - 0.05) and macd_bear:
         direction = "SELL"
 
     if direction is None:
         if m5_bias == "LONG":
             logger.info(
                 f"NO SIGNAL >> M5=LONG | "
-                f"close({last['close']:.3f})>DC_hi({dc_upper:.3f})={last['close']>dc_upper} | "
-                f"macd_bull={macd_bull} [hist={macd_hist_now:.5f} need>{MACD_HIST_MIN} & expanding]"
+                f"close({last['close']:.3f})>DC_hi+0.05({dc_upper+0.05:.3f})={last['close']>(dc_upper+0.05)} | "
+                f"macd_bull={macd_bull} [hist={macd_hist_now:.5f} need>{MACD_HIST_MIN} & sustained expansion]"
             )
         else:
             logger.info(
                 f"NO SIGNAL >> M5=SHORT | "
-                f"close({last['close']:.3f})<DC_lo({dc_lower:.3f})={last['close']<dc_lower} | "
-                f"macd_bear={macd_bear} [hist={macd_hist_now:.5f} need<-{MACD_HIST_MIN} & expanding]"
+                f"close({last['close']:.3f})<DC_lo-0.05({dc_lower-0.05:.3f})={last['close']<(dc_lower-0.05)} | "
+                f"macd_bear={macd_bear} [hist={macd_hist_now:.5f} need<-{MACD_HIST_MIN} & sustained expansion]"
             )
         return None
 
@@ -277,7 +244,7 @@ def evaluate_signal(sl_pips: float = 15, tp_pips: float = 20) -> Optional[dict]:
     if tick is None:
         return None
 
-    pip   = PIP_SIZE
+    pip = PIP_SIZE
 
     if direction == "BUY":
         entry = tick.ask
@@ -291,7 +258,7 @@ def evaluate_signal(sl_pips: float = 15, tp_pips: float = 20) -> Optional[dict]:
     logger.info(
         f"SIGNAL: {direction} | entry={entry:.5f} sl={sl:.5f} tp={tp:.5f} | "
         f"M5={m5_bias} | DC_upper={dc_upper:.3f} DC_lower={dc_lower:.3f} | "
-        f"MACD_hist={macd_hist_now:.5f} (prev={macd_hist_prev:.5f})"
+        f"MACD_hist={macd_hist_now:.5f} (sustained expansion confirmed)"
     )
 
     return {
@@ -303,35 +270,31 @@ def evaluate_signal(sl_pips: float = 15, tp_pips: float = 20) -> Optional[dict]:
     }
 
 
-# ── early exit ────────────────────────────────────────────────────────────────
-
 def check_early_exit(position) -> bool:
     """
-    Close position early if MACD momentum has reversed strongly against us
-    AND we have not yet reached 10 pips profit.
-
-    Uses MACD histogram flip instead of engulfing candle — more reliable signal.
+    STRENGTHENED early exit check.
+    Now requires STRONG momentum reversal (not just any flip).
     """
     symbol_info = mt5.symbol_info(MT5_SYMBOL)
     if symbol_info is None:
         return False
 
-    pip   = PIP_SIZE
+    pip = PIP_SIZE
 
     tick = mt5.symbol_info_tick(MT5_SYMBOL)
     if tick is None:
         return False
 
-    # Only consider early exit if trade has not reached +10 pips yet
+    # Only check if NOT yet at 10 pips profit
     if position.type == mt5.ORDER_TYPE_BUY:
         profit_in_price = tick.bid - position.price_open
     else:
         profit_in_price = position.price_open - tick.ask
 
     if profit_in_price >= 10 * pip:
-        return False  # Profitable enough — let TP hit
+        return False
 
-    # Get fresh MACD reading
+    # Get fresh MACD
     df = _fetch_rates(mt5.TIMEFRAME_M1, 60)
     if df is None or len(df) < MACD_SLOW + MACD_SIGNAL + 5:
         return False
@@ -344,21 +307,20 @@ def check_early_exit(position) -> bool:
     if pd.isna(hist_now) or pd.isna(hist_prev):
         return False
 
-    # Exit BUY early if MACD has flipped strongly bearish
+    # STRENGTHENED: require histogram to be BEYOND threshold (not just flip)
     if position.type == mt5.ORDER_TYPE_BUY:
-        if hist_now < -MACD_HIST_MIN and hist_now < hist_prev:
+        if hist_now < -(MACD_HIST_MIN * 1.5) and hist_now < hist_prev:
             logger.info(
-                f"Early exit: MACD reversed bearish against BUY #{position.ticket} "
-                f"hist={hist_now:.5f}"
+                f"Early exit: STRONG MACD reversal against BUY #{position.ticket} "
+                f"hist={hist_now:.5f} (threshold: -{MACD_HIST_MIN*1.5:.5f})"
             )
             return True
 
-    # Exit SELL early if MACD has flipped strongly bullish
     elif position.type == mt5.ORDER_TYPE_SELL:
-        if hist_now > MACD_HIST_MIN and hist_now > hist_prev:
+        if hist_now > (MACD_HIST_MIN * 1.5) and hist_now > hist_prev:
             logger.info(
-                f"Early exit: MACD reversed bullish against SELL #{position.ticket} "
-                f"hist={hist_now:.5f}"
+                f"Early exit: STRONG MACD reversal against SELL #{position.ticket} "
+                f"hist={hist_now:.5f} (threshold: {MACD_HIST_MIN*1.5:.5f})"
             )
             return True
 
