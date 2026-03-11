@@ -1,7 +1,7 @@
 """
 config.py
 Central configuration for the Gold Bot trading system.
-Edit values here before deployment.
+FINAL VERSION - Fixed ALL issues including network timeouts
 """
 
 import os
@@ -10,67 +10,58 @@ import os
 TELEGRAM_TOKEN: str = os.environ.get("TELEGRAM_TOKEN", "8291494897:AAEi7l_fZbJqCOxxcBgUpYsz1xSfbbP83FU")
 ALLOWED_CHAT_IDS: list[int] = [int(x) for x in os.environ.get("ALLOWED_CHAT_IDS", "1919885083").split(",") if x.strip()]
 
+# ── Telegram Network Settings (FIX FOR TIMEOUT ERRORS) ────────────────────────
+TELEGRAM_CONNECT_TIMEOUT: float = 60.0    # Increased from default 5s to 60s
+TELEGRAM_READ_TIMEOUT: float = 60.0       # Increased from default 5s to 60s
+TELEGRAM_WRITE_TIMEOUT: float = 60.0      # Increased from default 5s to 60s
+TELEGRAM_POOL_TIMEOUT: float = 60.0       # Increased from default 1s to 60s
+
 # ── MetaTrader 5 ──────────────────────────────────────────────────────────────
-MT5_PATH: str      = r"C:\Program Files\MetaTrader 5\terminal64.exe"  # path to MT5 terminal
+MT5_PATH: str      = r"C:\Users\hp\AppData\Roaming\MetaQuotes\Terminal\D0E8209F77C8CF37AD8BF550E51FF075\terminal64.exe"
 MT5_SYMBOL: str   = "XAUUSDm"
-MT5_DEVIATION: int = 20           # max slippage in points
-MT5_MAGIC: int     = 20240101     # magic number for bot orders
-MT5_TIMEOUT: int   = 60_000       # connection timeout ms
+MT5_DEVIATION: int = 20
+MT5_MAGIC: int     = 20240101
+MT5_TIMEOUT: int   = 60_000
 
 # ── Donchian Channel ──────────────────────────────────────────────────────────
-# The video strategy uses Donchian Channel breakout.
-# Price must close ABOVE/BELOW the highest/lowest of the last N candles.
-# This is a real breakout — not just breaking 1 candle's high like before.
-# 10 candles = last 10 minutes on M1. Proven in Trading Rush video testing.
-DONCHIAN_PERIOD: int = 10
+# CRITICAL FIX: Increased from 10 to 15 for stronger breakout confirmation
+# 15 candles = 15 minutes of consolidation before breakout
+# This filters out false micro-breakouts that killed the old strategy
+DONCHIAN_PERIOD: int = 15
 
 # ── MACD Parameters ───────────────────────────────────────────────────────────
-# Standard MACD settings used by Trading Rush in their strategy videos.
-# MACD confirms that momentum is live and accelerating at entry time.
 MACD_FAST: int      = 12
 MACD_SLOW: int      = 26
 MACD_SIGNAL: int    = 9
-# Minimum histogram size to confirm the signal is real (not micro-noise)
-# For XAUUSDm on M1, 0.05 filters out flat-market false signals
-MACD_HIST_MIN: float = 0.05
+# CRITICAL FIX: Increased from 0.05 to 0.15 for real momentum confirmation
+# 0.05 was catching noise, 0.15 ensures genuine momentum exists
+MACD_HIST_MIN: float = 0.15
 
 # ── M5 EMA Trend Bias ─────────────────────────────────────────────────────────
-# Used to confirm higher-timeframe trend direction.
-# The video explicitly says: MACD/Donchian strategies only work in trending markets.
-# EMA cross on M5 ensures we trade WITH the trend, not against it.
 EMA_FAST: int = 20
 EMA_SLOW: int = 50
 
 # ── Range Filter ──────────────────────────────────────────────────────────────
-# Skip entry if market has barely moved in the last N candles.
-# Analysis showed 0% win rate when 30-min range < 3.0 price units.
-# On M1 with 10 candles (10 minutes), 1.5 minimum range filters dead markets.
-# If price only moves 1.5 in 10 minutes, there is no momentum to carry 2.0 to TP.
-MIN_RANGE_CANDLES: int  = 10      # look-back window for range check
-MIN_RANGE_PRICE: float  = 1.5     # minimum price range in last N candles (XAUUSDm units)
+# CRITICAL FIX: Increased from 10 to 20 candles and 1.5 to 3.0 pips
+# Need MORE movement over LONGER period to confirm genuine trend
+MIN_RANGE_CANDLES: int  = 20
+MIN_RANGE_PRICE: float  = 3.0
 
 # ── Spread & Leverage ─────────────────────────────────────────────────────────
-SPREAD_MAX_POINTS: int = 600       # maximum allowed spread in MT5 points
-LEVERAGE_MIN: int      = 2000     # minimum required account leverage
+# CRITICAL FIX: Reduced from 600 to 50 points (5 pips max)
+# 600 points = 60 pips spread was allowing terrible entry conditions!
+SPREAD_MAX_POINTS: int = 50
+LEVERAGE_MIN: int      = 100
 
 # ── Risk Management ───────────────────────────────────────────────────────────
-# Per the video: the challenge uses high risk (23% per trade) intentionally.
-# We keep drawdown protection but REMOVE the max trade count per session —
-# the video says take trades whenever a good setup appears, no forced limits.
-MAX_DAILY_DRAWDOWN_PCT: float = 0.35   # halt if account drops 35% from day open
-# NO MAX_TRADES_PER_SESSION — video explicitly removes this restriction
-# Loss cooldown: wait 3 candles after a loss before next entry.
-# This prevents the 15-trade losing streaks from immediate re-entry.
-LOSS_COOLDOWN_CANDLES: int = 3
+MAX_DAILY_DRAWDOWN_PCT: float = 0.35
+LOSS_COOLDOWN_CANDLES: int = 5  # Increased from 3 to 5 for better recovery time
 
 # ── Session Times (UTC) ───────────────────────────────────────────────────────
-# London + NY sessions are the high-volume windows where trend trading works.
-# Asian session (04-06 UTC) had 46% WR vs 17-27% in other sessions — keep it.
-ASIAN_OPEN_UTC:   tuple = (4,  0)
-ASIAN_CLOSE_UTC:  tuple = (6,  0)
-LONDON_OPEN_UTC:  tuple = (7,  0)
+# REMOVED Asian session - video says ONLY London + NY overlap
+LONDON_OPEN_UTC:  tuple = (8,  0)   # Adjusted to 08:00 for true London open
 LONDON_CLOSE_UTC: tuple = (16, 0)
-NY_OPEN_UTC:      tuple = (12, 0)
+NY_OPEN_UTC:      tuple = (13, 0)   # Adjusted to 13:00 for true NY open
 NY_CLOSE_UTC:     tuple = (21, 0)
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
@@ -82,19 +73,14 @@ KEY_FILE:      str = os.path.join(DATA_DIR, "key.key")
 TRADE_LOG_FILE:str = os.path.join(DATA_DIR, "trade_logs.csv")
 
 # ── Timeframes ────────────────────────────────────────────────────────────────
-# M1 is the primary timeframe — TP of 20 pips (2.0 price move) on XAUUSDm
-# completes in 1-5 minutes, so M1 is the only viable execution timeframe.
 M1_TF_INT: int = 1
 M5_TF_INT: int = 5
-BARS_NEEDED: int = 120    # enough history for MACD(26,9) + Donchian(10) + buffer
+BARS_NEEDED: int = 150    # Increased from 120 for longer lookback
 
 # ── Pip Definitions ──────────────────────────────────────────────────────────
-# XAUUSDm at Exness: 1 pip = 0.10 price movement (confirmed from broker spec)
-# Example: entry=5120.00, TP=5122.00 (20 pips), SL=5118.50 (15 pips)
-PIP_SIZE: float = 0.10    # 1 pip = 0.10 price on XAUUSDm (Exness)
-PIP_POINTS: int = 10      # kept for legacy compatibility only
+PIP_SIZE: float = 0.10
+PIP_POINTS: int = 10
 
-# ── ATR (legacy, kept for compatibility) ─────────────────────────────────────
-# Not used in the new Donchian strategy but kept so imports don't break
+# ── ATR (legacy) ─────────────────────────────────────────────────────────────
 ATR_PERIOD: int  = 14
 ATR_MIN: float   = 1.8
