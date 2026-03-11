@@ -9,6 +9,7 @@ Changes from previous version:
 4. Tighter spread check (50 vs 600 points)
 5. Additional momentum expansion verification
 6. Stronger M5 bias confirmation
+7. SPREAD LOGGING - tracks every spread check to CSV
 """
 
 from datetime import datetime, timezone
@@ -38,6 +39,7 @@ from config import (
     SPREAD_MAX_POINTS,
 )
 from logger import logger
+from spread_logger import log_spread  # NEW: spread logging
 
 
 def _fetch_rates(timeframe: int, count: int) -> Optional[pd.DataFrame]:
@@ -78,6 +80,29 @@ def is_trading_session() -> bool:
     in_ny     = ny_open      <= current_minutes < ny_close
     
     return in_london or in_ny
+
+
+def get_current_session() -> str:
+    """Return current trading session name for logging."""
+    now_utc = datetime.now(timezone.utc)
+    current_minutes = now_utc.hour * 60 + now_utc.minute
+
+    london_open  = LONDON_OPEN_UTC[0]  * 60 + LONDON_OPEN_UTC[1]
+    london_close = LONDON_CLOSE_UTC[0] * 60 + LONDON_CLOSE_UTC[1]
+    ny_open      = NY_OPEN_UTC[0]      * 60 + NY_OPEN_UTC[1]
+    ny_close     = NY_CLOSE_UTC[0]     * 60 + NY_CLOSE_UTC[1]
+
+    in_london = london_open  <= current_minutes < london_close
+    in_ny     = ny_open      <= current_minutes < ny_close
+    
+    if in_london and in_ny:
+        return "London+NY"
+    elif in_london:
+        return "London"
+    elif in_ny:
+        return "NY"
+    else:
+        return "OffHours"
 
 
 def check_spread() -> bool:
@@ -137,15 +162,41 @@ def get_m5_bias() -> Optional[str]:
 def evaluate_signal(sl_pips: float = 15, tp_pips: float = 20) -> Optional[dict]:
     """
     STRENGTHENED signal evaluation with all video strategy filters.
+    Now logs spread data to CSV on every check.
     """
+    # Get current session for logging
+    session = get_current_session()
+    
     # ── Pre-checks ────────────────────────────────────────────────────────────
     if not is_trading_session():
         return None
 
+    # ── SPREAD CHECK WITH LOGGING ─────────────────────────────────────────────
     spread_info = mt5.symbol_info(MT5_SYMBOL)
-    current_spread = spread_info.spread if spread_info else 999
-    if not check_spread():
-        logger.info(f"BLOCKED >> Spread too high: {current_spread} > {SPREAD_MAX_POINTS}")
+    tick = mt5.symbol_info_tick(MT5_SYMBOL)
+    
+    if spread_info is None or tick is None:
+        return None
+    
+    current_spread = spread_info.spread
+    bid = tick.bid
+    ask = tick.ask
+    
+    # LOG SPREAD TO CSV - happens every signal evaluation
+    log_spread(
+        spread_points=current_spread,
+        bid=bid,
+        ask=ask,
+        session=session,
+        status="OK" if current_spread <= SPREAD_MAX_POINTS else "BLOCKED"
+    )
+    
+    # Check if spread is acceptable
+    if current_spread > SPREAD_MAX_POINTS:
+        logger.info(
+            f"BLOCKED >> Spread too high: {current_spread} > {SPREAD_MAX_POINTS} "
+            f"({current_spread/10:.1f} pips) | Session: {session}"
+        )
         return None
 
     acct = mt5.account_info()
