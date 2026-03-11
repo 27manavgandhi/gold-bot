@@ -50,7 +50,7 @@ MIN_RANGE_PRICE: float  = 3.0
 # ── Spread & Leverage ─────────────────────────────────────────────────────────
 # CRITICAL FIX: Reduced from 600 to 50 points (5 pips max)
 # 600 points = 60 pips spread was allowing terrible entry conditions!
-SPREAD_MAX_POINTS: int = 50
+SPREAD_MAX_POINTS: int = 360
 LEVERAGE_MIN: int      = 100
 
 # ── Risk Management ───────────────────────────────────────────────────────────
