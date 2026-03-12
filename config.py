@@ -54,7 +54,7 @@ SPREAD_MAX_POINTS: int = 360
 LEVERAGE_MIN: int      = 100
 
 # ── Risk Management ───────────────────────────────────────────────────────────
-MAX_DAILY_DRAWDOWN_PCT: float = 0.35
+MAX_DAILY_DRAWDOWN_PCT: float = 0.99
 LOSS_COOLDOWN_CANDLES: int = 5  # Increased from 3 to 5 for better recovery time
 
 # ── Session Times (UTC) ───────────────────────────────────────────────────────
