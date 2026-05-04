@@ -1,4 +1,4 @@
-# Gold Bot – XAUUSD Automated Trading System
+# Gold Bot – XAUUSD Automated Trading System (20 Pips Challenge)
 
 ## Deployment Guide
 
