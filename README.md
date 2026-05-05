@@ -11,6 +11,7 @@
 - MetaTrader 5 terminal installed and logged in to your broker
 - Telegram Bot Token (from @BotFather)
 - Your Telegram Chat ID
+- Stable wifi
 
 ---
 
