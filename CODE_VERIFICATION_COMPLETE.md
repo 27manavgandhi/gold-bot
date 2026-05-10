@@ -53,8 +53,8 @@ def get_current_level(balance: float) -> dict:
     return {
         "level":   level,
         "lot":     lot,
-        "sl_pips": sl_pips,     # e.g., 15.00
-        "tp_pips": tp_pips,     # e.g., 20
+        "sl_pips": sl_pips,     # e.g., 15.00 pips
+        "tp_pips": tp_pips,     # e.g., 20 pips
     }
 ```
 
