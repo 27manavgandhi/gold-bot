@@ -24,6 +24,8 @@ Entry Price:        5120.00
 TP (20 pips):       5122.00    ← 20 × 0.10 = +2.00 price units from entry
 SL (15 pips):       5118.50    ← 15 × 0.10 = -1.50 price units from entry
 
+Leverage is 1: unlimited
+
 Total Distance: TP to SL = 3.50 price units (35 pips total)
                           TP is  2.00 units above entry (favourable)
                           SL is  1.50 units below entry (unfavourable)
