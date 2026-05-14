@@ -1,4 +1,4 @@
-# Quick Reference – Trade Placement Verification ✅
+# Quick Reference – Trade Placement Verification 
 
 ## Complete Trade Flow (Step-by-Step)
 
