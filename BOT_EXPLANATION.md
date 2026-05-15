@@ -2,7 +2,7 @@
 
 ## 🤖 What is Gold Bot?
 
-**Gold Bot** is an automated XAUUSD (Gold) trading system that runs 24/7 on MetaTrader 5 with Telegram control. It executes algorithmic trades based on the **Donchian Channel Breakout Strategy** with strict risk management and real-time trade monitoring via Telegram. It is basically 20 pips challenege
+**Gold Bot** is an automated XAUUSD trading system that runs 24/7 on MetaTrader 5 with Telegram control. It executes algorithmic trades based on the **Donchian Channel Breakout Strategy** with strict risk management and real-time trade monitoring via Telegram. It is basically 20 pips challenege
 
 ---
 
