@@ -31,7 +31,7 @@ The initial strategy for Gold Bot relied on a straightforward EMA-based system w
 ### Root Causes of Failure:
 
 **1. False Breakout Signals (Primary Issue)**
-- Price would break the previous candle's high/low but lack momentum to reach 20-pip take-profit
+- Price would break the previous candle's high/low but lack momentum to reach 20-pips take-profit
 - Result: Entries were made at emotional peaks, with reversals immediately following
 - Example: Entry at 5120.5 after breaking previous high, but price reversed to 5119.2 (SL hit at -15 pips)
 
