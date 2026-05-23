@@ -8,7 +8,7 @@ improvements (including identifying which days/times are most favourable).
 
 ---
 
-## 1. Video Strategy Summary
+## 1. Video Strategy
 
 The original challenge from the video contains the following points:
 
