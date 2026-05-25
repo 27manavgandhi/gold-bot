@@ -13,7 +13,7 @@ SL (15 pips): 5118.50
 
 ## 1. Complete Trade Flow Verification
 
-### Step 1: Pip Definition (config.py)
+### Step 1: Pip Definition
 
 **File:** `config.py`, lines 85–87
 
