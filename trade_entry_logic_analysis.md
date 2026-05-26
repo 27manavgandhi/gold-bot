@@ -9,7 +9,7 @@ technical indicators it uses, and whether the combined logic is sound.
 
 | Question | Answer |
 |----------|--------|
-| What indicators does it use? | **Combination of all three:** Donchian Channel + MACD + M5 EMA (moving average) |
+| What indicators does it use? | **Combination of all three:** Donchian Channel + MACD |
 | Is the logic correct? | **Yes** – the combination is sound and evidence-based. |
 | Will it give results? | **Yes, but with conditions:** High-quality setups + disciplined risk = profitability. Win rate depends on actual market conditions. |
 | Which is best alone? | **Donchian alone:** ~50–60% WR in trends; **MACD alone:** ~50–55% WR; **Both together:** ~60–65% WR in trending markets. @0 pips challenege |
