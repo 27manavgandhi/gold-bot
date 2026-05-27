@@ -10,7 +10,7 @@
 
 ### **Donchian Channel Breakout Strategy**
 
-The bot uses an enhanced Donchian Channel breakout approach:
+The bot uses an enhanced Donchian Channel breakout:
 
 #### **Core Logic:**
 1. **Donchian Channel (15 candles)** - Tracks the highest and lowest prices over 15 M5 candles
