@@ -6,7 +6,7 @@
 
 ### 1. Requirements
 
-- Windows VPS (Windows Server 2019/2022/2023 recommended)
+- Windows VPS (Windows Server 2019/2022/2023 recommended or any)
 - Python 3.11+
 - MetaTrader 5 terminal installed and logged in to your broker
 - Telegram Bot Token (from @BotFather)
