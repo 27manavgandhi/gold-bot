@@ -20,9 +20,9 @@ Your understanding is **100% correct**. Here's the confirmation:
 ### XAUUSDm Example (Your Example is Exactly Right)
 
 ```
-Entry Price:        5120.00
-TP (20 pips):       5122.00    ← 20 × 0.10 = +2.00 price units from entry
-SL (15 pips):       5118.50    ← 15 × 0.10 = -1.50 price units from entry
+Entry Price:        5120.5
+TP (20 pips):       5122.5    ← 20 × 0.10 = +2.00 price units from entry
+SL (15 pips):       5118.    ← 15 × 0.10 = -1.50 price units from entry
 
 Leverage is 1: unlimited
 
