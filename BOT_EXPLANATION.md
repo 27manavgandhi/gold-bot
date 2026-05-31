@@ -13,7 +13,7 @@
 The bot uses an enhanced Donchian Channel breakout:
 
 #### **Core Logic:**
-1. **Donchian Channel (15 candles)** - Tracks the highest and lowest prices over 15 M5 candles
+1. **Donchian Channel (15 candles sticks)** - Tracks the highest and lowest prices over 15 M5 candles
 2. **MACD Confirmation** - Validates momentum before entry (threshold: 0.15)
 3. **EMA Filter** - Fast EMA (12) and Slow EMA (26) confirm trend direction
 4. **Range Expansion Check** - Requires 3.0+ pips movement over 20 candles
