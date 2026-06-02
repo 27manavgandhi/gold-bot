@@ -1,13 +1,4 @@
-"""Utilities for analysing trade log CSVs.
 
-Generate comprehensive statistics by weekday, session, etc.
-Compute win rate, PnL, probability metrics, and identify best trading conditions.
-
-Usage example::
-
-    python analyse_trades.py
-
-"""
 from datetime import time
 import pandas as pd
 import os
