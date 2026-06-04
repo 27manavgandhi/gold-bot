@@ -58,7 +58,7 @@ The initial strategy for Gold Bot relied on a straightforward EMA-based system w
 - Stop losses were hit rapidly with no chance for 20-pip gain execution
 - Account equity curve showed continuous erosion
 
-**Conclusion:** The strategy generated too many low-probability signals in unfavorable market conditions. A 20% win rate with 1.3:1 RR is mathematically impossible to scale into an account.
+
 
 ---
 
