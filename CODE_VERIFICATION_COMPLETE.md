@@ -75,9 +75,7 @@ def evaluate_signal(sl_pips: float = 15, tp_pips: float = 20) -> Optional[dict]:
     Main signal evaluation using Donchian Channel breakout + MACD + M5 EMA.
     Returns signal dict with entry, sl, tp.
     """
-    # ... [all the indicator checks: Donchian, MACD, M5 EMA]
-    
-    # ── Price levels ──────────────────────────────────────────────────────────
+ 
     symbol_info = mt5.symbol_info(MT5_SYMBOL)
     if symbol_info is None:
         return None
