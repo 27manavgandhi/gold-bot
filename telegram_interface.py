@@ -1,10 +1,4 @@
-"""
-telegram_interface.py
-ENHANCED - Now supports MULTIPLE account selection with checkboxes
-Plus all original functionality with improved multi-account management
-FIXED - Added retry logic for network timeouts
-UPDATED - Integrated spread logging on start/stop
-"""
+
 
 import asyncio
 import os
