@@ -90,7 +90,7 @@ The bot is fully controlled through Telegram commands:
 ✅ Dynamic position sizing based on account balance  
 ✅ Drawdown tracking and alerts  
 ✅ Maximum loss per trade validation  
-✅ Account equity-based risk calculations  
+
 
 ### **Trading:**
 ✅ Multi-timeframe analysis (M1, M5, M15 candles)  
