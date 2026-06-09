@@ -1,8 +1,4 @@
-"""
-spread_logger.py
-Tracks and logs spread data to CSV for analysis and optimization.
-Logs every time spread is checked during signal evaluation.
-"""
+
 
 import csv
 import os
