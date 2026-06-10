@@ -1,8 +1,4 @@
-"""
-account_manager.py
-Manages multiple MT5 accounts with Fernet-encrypted credential storage.
-Supports demo accounts where password may be provided via email from broker.
-"""
+
 
 import json
 import os
