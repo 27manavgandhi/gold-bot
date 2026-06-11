@@ -445,7 +445,7 @@ tp = round(5120.00 - 20 * 0.10, 4)
 6. **Challenge Compliance** ✅
    - All trades follow the 20-pips-a-day challenge format
    - 30-level progression with compounding profits
-   - 1.33:1 RR ratio maintained throughout
+ 
 
 ---
 
