@@ -220,7 +220,6 @@ Example:
 🔐 **Never expose `data/key.key` or `accounts.json`**  
 📝 **Always test on demo first**  
 🛑 **Monitor trades regularly via Telegram**  
-💾 **Backup encryption key and accounts regularly**  
 
 ---
 
