@@ -12,6 +12,7 @@ Formula:
   Risk$   = lot * 100 * sl_pips * 0.1
   SL pips = Risk$ / (lot * 100 * 0.1)
   Risk at each level = Profit of previous level
+  All levels of challenge
 """
 
 LEVELS = [
